@@ -67,5 +67,12 @@
         <button class="btn primary">Publish</button>
     </form>
 </div>
+<div class="card">
+    <h3>Let AI draft an exam</h3>
+    <form class="form-grid" method="post" action="{{ url_for('generate_exam_ai') }}">
+        <label>Prompt<textarea name="prompt" rows="3" placeholder="e.g. Create a grammar intensive mock for reported speech."></textarea></label>
+        <button class="btn secondary">Generate exam</button>
+    </form>
+</div>
 {% endif %}
 {% endblock %}

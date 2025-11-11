@@ -250,6 +250,16 @@ a {
     background: #f4f4ff;
 }
 
+.sample-text {
+    background: #0f172a;
+    color: #f8fafc;
+    padding: 1rem;
+    border-radius: 16px;
+    max-height: 240px;
+    overflow: auto;
+    white-space: pre-wrap;
+}
+
 .flash-container {
     display: flex;
     flex-direction: column;

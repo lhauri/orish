@@ -7,12 +7,14 @@ How to run locally:
 4. Start the development server: python app.py.
 """
 
+import csv
 import json
 import os
 import random
 import sqlite3
 from datetime import datetime
 from functools import wraps
+from io import BytesIO
 
 from dotenv import load_dotenv
 from flask import (
@@ -28,6 +30,11 @@ from flask import (
 )
 from openai import OpenAI
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
+
+from docx import Document
+from PyPDF2 import PdfReader
+import openpyxl
 
 load_dotenv()
 
@@ -44,6 +51,8 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 ai_client = None
+
+ALLOWED_UPLOADS = {".txt", ".md", ".pdf", ".docx", ".xlsx", ".csv"}
 
 
 def get_ai_client():
@@ -157,6 +166,179 @@ def summarize_attempt_for_teacher(exam_title, answers):
     except Exception as exc:  # pragma: no cover
         app.logger.warning("DeepSeek summary failed: %s", exc)
     return None
+
+
+QUESTION_SCHEMAS = {
+    "vocabulary": {
+        "description": "Return JSON array of objects with keys word, correct_answer, wrong1, wrong2, wrong3.",
+        "columns": ["word", "correct_answer", "wrong1", "wrong2", "wrong3"],
+    },
+    "grammar": {
+        "description": (
+            "Return JSON array of objects with keys sentence_with_placeholder "
+            "(use __ for blank), correct_answer, wrong1, wrong2, wrong3."
+        ),
+        "columns": [
+            "sentence_with_placeholder",
+            "correct_answer",
+            "wrong1",
+            "wrong2",
+            "wrong3",
+        ],
+    },
+    "reading": {
+        "description": (
+            "Return JSON array of objects with keys title, text (<=120 words), "
+            "question, correct_answer, wrong1, wrong2, wrong3."
+        ),
+        "columns": [
+            "title",
+            "text",
+            "question",
+            "correct_answer",
+            "wrong1",
+            "wrong2",
+            "wrong3",
+        ],
+    },
+    "translation": {
+        "description": "Return JSON array of objects with keys prompt and reference_answer.",
+        "columns": ["prompt", "reference_answer"],
+    },
+}
+
+
+def request_ai_json(system_prompt, user_prompt):
+    client = get_ai_client()
+    if not client:
+        raise RuntimeError("AI key missing")
+    response = client.responses.create(
+        model=DEEPSEEK_MODEL,
+        temperature=0.4,
+        input=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+    )
+    content = ""
+    if getattr(response, "output", None):
+        content = response.output[0].content[0].text
+    elif getattr(response, "output_text", None):
+        content = response.output_text[0]
+    return json.loads(content)
+
+
+def generate_questions_with_prompt(category, prompt):
+    if category not in QUESTION_SCHEMAS:
+        raise ValueError("Unsupported category")
+    schema = QUESTION_SCHEMAS[category]
+    instructions = (
+        "You are helping teachers prepare English exams. "
+        "Always return valid JSON and no other text. "
+        f"{schema['description']} Produce 1-3 fresh questions."
+    )
+    user_prompt = (
+        f"Category: {category}\nTeacher guidance: {prompt or 'Create standard practice.'}"
+    )
+    try:
+        data = request_ai_json(instructions, user_prompt)
+    except RuntimeError as exc:
+        raise RuntimeError(str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError("AI generation failed") from exc
+    if isinstance(data, dict):
+        data = [data]
+    filtered = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        filtered.append({key: item.get(key, "").strip() for key in schema["columns"]})
+    if not filtered:
+        raise RuntimeError("AI did not return usable content.")
+    return filtered
+
+
+def generate_exam_from_prompt(prompt):
+    instructions = (
+        "Create a single exam descriptor as JSON with keys title, description, "
+        "category (vocabulary/grammar/reading/translation), questions (int between 3 and 10). "
+        "No extra text."
+    )
+    data = request_ai_json(instructions, prompt or "Create a balanced assessment.")
+    if isinstance(data, list):
+        data = data[0]
+    category = data.get("category", "vocabulary").lower()
+    if category not in CATEGORIES:
+        category = "vocabulary"
+    questions = int(data.get("questions", 5))
+    return {
+        "title": data.get("title", "AI Exam Draft").strip()[:80],
+        "description": data.get("description", "").strip()[:200],
+        "category": category,
+        "questions": max(3, min(questions, 10)),
+    }
+
+
+def analyze_text_with_ai(text, custom_prompt=None):
+    snippet = text[:4000]
+    instructions = (
+        "Provide a JSON object with keys summary, vocabulary, grammar, action_points. "
+        "Each value should be short strings or bullet-like sentences."
+    )
+    user_content = (
+        f"Student material:\n{snippet}\n\nFocus: {custom_prompt or 'Highlight strengths and improvements.'}"
+    )
+    try:
+        data = request_ai_json(instructions, user_content)
+    except RuntimeError as exc:
+        raise RuntimeError(str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError("AI analysis failed") from exc
+    return {
+        "summary": data.get("summary", "No summary produced."),
+        "vocabulary": data.get("vocabulary", ""),
+        "grammar": data.get("grammar", ""),
+        "action_points": data.get("action_points", ""),
+    }
+
+
+def extract_text_from_upload(file_storage):
+    if not file_storage or not file_storage.filename:
+        raise ValueError("Please choose a file to upload.")
+    filename = secure_filename(file_storage.filename)
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in ALLOWED_UPLOADS:
+        raise ValueError("Unsupported file type.")
+    data = file_storage.read()
+    if not data:
+        raise ValueError("File appears to be empty.")
+    stream = BytesIO(data)
+    if ext in {".txt", ".md"}:
+        return data.decode("utf-8", errors="ignore")
+    if ext == ".pdf":
+        reader = PdfReader(stream)
+        parts = []
+        for page in reader.pages[:10]:
+            parts.append(page.extract_text() or "")
+        return "\n".join(parts)
+    if ext == ".docx":
+        doc = Document(stream)
+        return "\n".join(p.text for p in doc.paragraphs)
+    if ext == ".xlsx":
+        wb = openpyxl.load_workbook(stream, data_only=True)
+        sheet = wb.active
+        rows = []
+        for row in sheet.iter_rows(values_only=True):
+            cells = [str(cell) for cell in row if cell is not None]
+            if cells:
+                rows.append(" ".join(cells))
+        return "\n".join(rows)
+    if ext == ".csv":
+        stream.seek(0)
+        text = data.decode("utf-8", errors="ignore")
+        reader = csv.reader(text.splitlines())
+        return "\n".join(" ".join(row) for row in reader)
+    raise ValueError("Unsupported file type.")
 
 CATEGORIES = {
     "vocabulary": {
@@ -401,6 +583,30 @@ def mindmap():
     return render_template("mindmap.html")
 
 
+@app.route("/analyze", methods=["GET", "POST"])
+@login_required
+def analyze():
+    analysis = None
+    extracted = ""
+    custom_prompt = ""
+    if request.method == "POST":
+        custom_prompt = request.form.get("prompt", "").strip()
+        file = request.files.get("document")
+        try:
+            extracted = extract_text_from_upload(file)
+            analysis = analyze_text_with_ai(extracted, custom_prompt)
+        except ValueError as exc:
+            flash(str(exc), "warning")
+        except RuntimeError as exc:
+            flash(str(exc), "danger")
+    return render_template(
+        "analyze.html",
+        analysis=analysis,
+        custom_prompt=custom_prompt,
+        sample_text=extracted[:1200],
+    )
+
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
@@ -549,6 +755,30 @@ def create_exam():
     )
     db.commit()
     flash("Exam created and ready to assign.", "success")
+    return redirect(url_for("exams"))
+
+
+@app.route("/admin/exams/generate", methods=["POST"])
+@admin_required
+def generate_exam_ai():
+    prompt = request.form.get("prompt", "").strip()
+    try:
+        payload = generate_exam_from_prompt(prompt)
+    except RuntimeError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("exams"))
+    db = get_db()
+    db.execute(
+        "INSERT INTO exams (title, description, category, questions) VALUES (?, ?, ?, ?)",
+        (
+            payload["title"],
+            payload["description"],
+            payload["category"],
+            payload["questions"],
+        ),
+    )
+    db.commit()
+    flash(f"AI created exam '{payload['title']}'.", "success")
     return redirect(url_for("exams"))
 
 
@@ -897,6 +1127,65 @@ def add_question(category):
             )
     db.commit()
     flash("Question added.", "success")
+    return redirect(url_for("admin_questions", category=category))
+
+
+@app.route("/admin/questions/<category>/generate", methods=["POST"])
+@admin_required
+def generate_question_ai(category):
+    if category not in CATEGORIES:
+        abort(404)
+    prompt = request.form.get("prompt", "").strip()
+    try:
+        generated = generate_questions_with_prompt(category, prompt)
+    except RuntimeError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("admin_questions", category=category))
+    table = CATEGORIES[category]["table"]
+    db = get_db()
+    for item in generated:
+        if category == "vocabulary":
+            db.execute(
+                f"INSERT INTO {table} (word, correct_answer, wrong1, wrong2, wrong3) VALUES (?, ?, ?, ?, ?)",
+                (
+                    item["word"],
+                    item["correct_answer"],
+                    item["wrong1"],
+                    item["wrong2"],
+                    item["wrong3"],
+                ),
+            )
+        elif category == "grammar":
+            db.execute(
+                f"INSERT INTO {table} (sentence_with_placeholder, correct_answer, wrong1, wrong2, wrong3) VALUES (?, ?, ?, ?, ?)",
+                (
+                    item["sentence_with_placeholder"],
+                    item["correct_answer"],
+                    item["wrong1"],
+                    item["wrong2"],
+                    item["wrong3"],
+                ),
+            )
+        elif category == "reading":
+            db.execute(
+                f"INSERT INTO {table} (title, text, question, correct_answer, wrong1, wrong2, wrong3) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    item["title"],
+                    item["text"],
+                    item["question"],
+                    item["correct_answer"],
+                    item["wrong1"],
+                    item["wrong2"],
+                    item["wrong3"],
+                ),
+            )
+        else:
+            db.execute(
+                f"INSERT INTO {table} (prompt, reference_answer) VALUES (?, ?)",
+                (item["prompt"], item["reference_answer"]),
+            )
+    db.commit()
+    flash(f"Generated {len(generated)} question(s).", "success")
     return redirect(url_for("admin_questions", category=category))
 
 

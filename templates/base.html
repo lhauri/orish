@@ -24,6 +24,9 @@
             <a href="{{ url_for('exams') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['exams', 'take_exam', 'exam_result'] else 'false' }}">
                 <i data-lucide="award"></i> Exams
             </a>
+            <a href="{{ url_for('analyze') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'analyze' else 'false' }}">
+                <i data-lucide="file-search"></i> Analyze
+            </a>
             <a href="{{ url_for('mindmap') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'mindmap' else 'false' }}">
                 <i data-lucide="brain"></i> Mind Map
             </a>
