@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}Results • Orish{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="results-head">
+        <div>
+            <p class="tag">{{ category.label }}</p>
+            <h2>You scored {{ quiz.score }} / {{ quiz.total }}</h2>
+        </div>
+        <a class="btn secondary" href="{{ url_for('quiz', category=quiz.category) }}">Retry</a>
+    </div>
+    <ul class="answer-list">
+        {% for answer in quiz.answers %}
+        <li class="answer {{ 'correct' if answer.is_correct else 'wrong' }}">
+            <div>
+                <p class="prompt">{{ answer.question.prompt }}</p>
+                {% if answer.question.meta.get('text') %}
+                <small>{{ answer.question.meta.get('text') }}</small>
+                {% endif %}
+            </div>
+            <div class="answer-detail">
+                <p><strong>Your answer:</strong> {{ answer.selected or 'No answer' }}</p>
+                {% if not answer.is_correct %}
+                <p><strong>Correct:</strong> {{ answer.question.correct_answer }}</p>
+                {% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    <div class="actions">
+        <a class="btn primary" href="{{ url_for('quiz_select') }}">Pick another quiz</a>
+        <a class="btn ghost" href="{{ url_for('dashboard') }}">Back to dashboard</a>
+    </div>
+</div>
+{% endblock %}

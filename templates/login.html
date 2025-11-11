@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Login • Orish{% endblock %}
+{% block content %}
+<div class="card form-card">
+    <h2>Welcome back</h2>
+    <form method="post" class="form-grid">
+        <label>
+            Email
+            <input type="email" name="email" required>
+        </label>
+        <label>
+            Password
+            <input type="password" name="password" required>
+        </label>
+        <button class="btn primary full">Log in</button>
+    </form>
+    <p class="helper">New to Orish? <a href="{{ url_for('register') }}">Create an account</a>.</p>
+</div>
+{% endblock %}

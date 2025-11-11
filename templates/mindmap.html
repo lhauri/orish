@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Mind Map • Orish{% endblock %}
+{% block content %}
+<section class="card mindmap">
+    <h2>Learning overview</h2>
+    <p class="muted">Use this map to explain how Orish guides practice.</p>
+    <div class="mindmap-canvas" id="mindmap">
+        <div class="node center" data-icon="brain">Orish</div>
+        <div class="node" data-icon="type">Vocabulary</div>
+        <div class="node" data-icon="book">Grammar</div>
+        <div class="node" data-icon="file-text">Reading</div>
+        <div class="node" data-icon="clock-3">Time management</div>
+        <div class="node" data-icon="lightbulb">Test strategy</div>
+    </div>
+</section>
+{% endblock %}

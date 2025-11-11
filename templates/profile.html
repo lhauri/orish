@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Profile • Orish{% endblock %}
+{% block content %}
+<section class="grid two">
+    <div class="card">
+        <h2>{{ g.user['username'] }}</h2>
+        <p class="muted">{{ g.user['email'] }}</p>
+        <div class="placeholder">
+            <p>Change password</p>
+            <button class="btn ghost" disabled>Coming soon</button>
+        </div>
+    </div>
+    <div class="card">
+        <h3>Recent results</h3>
+        <ul class="result-list">
+            {% for result in results %}
+            <li>
+                <div>
+                    <strong>{{ result.category|capitalize }}</strong>
+                    <p class="muted">{{ result.created_at }}</p>
+                </div>
+                <span>{{ result.score }} / {{ result.total }}</span>
+            </li>
+            {% else %}
+            <li>No quizzes yet. Start one!</li>
+            {% endfor %}
+        </ul>
+    </div>
+</section>
+{% endblock %}

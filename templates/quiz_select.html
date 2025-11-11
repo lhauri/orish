@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Choose Quiz • Orish{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>Pick a category</h2>
+    <p class="muted">Each quiz gives 5 carefully selected questions.</p>
+    <div class="card-grid">
+        {% for key, meta in categories.items() %}
+        <div class="mini-card">
+            <i data-lucide="{{ meta.icon }}"></i>
+            <h3>{{ meta.label }}</h3>
+            <p>Sharpen your {{ meta.label.lower() }} skills.</p>
+            <a class="btn primary" href="{{ url_for('quiz', category=key) }}">Start quiz</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

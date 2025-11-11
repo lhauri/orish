@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard • Orish{% endblock %}
+{% block content %}
+<section class="grid two">
+    <div class="card highlight">
+        <p class="tag">Hello</p>
+        <h2>{{ g.user['username'] }}, ready to learn?</h2>
+        <p>Review your progress or dive straight into a quiz.</p>
+        <a href="{{ url_for('quiz_select') }}" class="btn primary">Start a quiz</a>
+    </div>
+    <div class="card stats">
+        <p>Total quizzes</p>
+        <h3>{{ total_quizzes }}</h3>
+        <p class="muted">Best scores per mode</p>
+        <div class="stat-grid">
+            {% for key, meta in categories.items() %}
+            <div class="stat-chip">
+                <i data-lucide="{{ meta.icon }}"></i>
+                <div>
+                    <p>{{ meta.label }}</p>
+                    <strong>{{ best_scores[key] }}/5</strong>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+<section class="card">
+    <h3>Choose training</h3>
+    <div class="card-grid">
+        {% for key, meta in categories.items() %}
+        <div class="mini-card">
+            <i data-lucide="{{ meta.icon }}"></i>
+            <h4>{{ meta.label }}</h4>
+            <p>Quick curated set of 5 questions.</p>
+            <a class="btn ghost" href="{{ url_for('quiz', category=key) }}">Start</a>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

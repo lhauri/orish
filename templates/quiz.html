@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}{{ category_meta.label }} Quiz • Orish{% endblock %}
+{% block content %}
+<div class="card quiz-card">
+    <div class="quiz-header">
+        <div>
+            <p class="tag">{{ category_meta.label }}</p>
+            <h2>Question {{ current }} / {{ total }}</h2>
+        </div>
+        <div class="progress">
+            <div class="progress-bar" style="width: {{ (current / total) * 100 }}%"></div>
+        </div>
+    </div>
+    {% if category == 'reading' %}
+    <article class="reading">
+        <h4>{{ question.meta.title }}</h4>
+        <p>{{ question.meta.text }}</p>
+    </article>
+    {% endif %}
+    <form method="post" class="quiz-form">
+        <p class="prompt">{{ question.prompt }}</p>
+        <div class="options">
+            {% for option in question.options %}
+            <label class="option">
+                <input type="radio" name="answer" value="{{ option }}" required>
+                <span>{{ option }}</span>
+            </label>
+            {% endfor %}
+        </div>
+        <button class="btn primary">Submit</button>
+    </form>
+</div>
+{% endblock %}

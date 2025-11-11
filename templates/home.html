@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Orish • English Prep{% endblock %}
+{% block content %}
+<section class="hero">
+    <div class="hero-text">
+        <p class="tag">Modern learning</p>
+        <h1>Study smart for your English tests.</h1>
+        <p class="subtitle">Orish keeps vocabulary, grammar, and reading drills in one calm workspace so you can focus.</p>
+        <div class="hero-actions">
+            {% if g.user %}
+            <a href="{{ url_for('dashboard') }}" class="btn primary">Go to dashboard</a>
+            {% else %}
+            <a href="{{ url_for('register') }}" class="btn primary">Get started</a>
+            <a href="{{ url_for('login') }}" class="btn secondary">Login</a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="hero-card">
+        <p>Practice modes</p>
+        <ul>
+            <li><i data-lucide="type"></i> Vocabulary</li>
+            <li><i data-lucide="book"></i> Grammar</li>
+            <li><i data-lucide="file-text"></i> Reading</li>
+        </ul>
+    </div>
+</section>
+{% endblock %}
