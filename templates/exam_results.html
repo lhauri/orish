@@ -1,16 +1,23 @@
 {% extends 'base.html' %}
-{% block title %}Results • Orish{% endblock %}
+{% block title %}Exam Result • Orish{% endblock %}
 {% block content %}
 <div class="card">
     <div class="results-head">
         <div>
-            <p class="tag">{{ category.label }}</p>
-            <h2>You scored {{ quiz.score }} / {{ quiz.total }}</h2>
+            <p class="tag">{{ attempt.title }}</p>
+            <h2>{{ attempt.score }} / {{ attempt.total }}</h2>
+            <p class="muted">Taken on {{ attempt.created_at }}</p>
         </div>
-        <a class="btn secondary" href="{{ url_for('quiz', category=quiz.category) }}">Retry</a>
+        <a class="btn secondary" href="{{ url_for('exams') }}">Back to exams</a>
     </div>
+    {% if attempt.ai_feedback %}
+    <div class="card highlight">
+        <p class="tag">Teacher summary</p>
+        <p>{{ attempt.ai_feedback }}</p>
+    </div>
+    {% endif %}
     <ul class="answer-list">
-        {% for answer in quiz.answers %}
+        {% for answer in answers %}
         <li class="answer {{ 'correct' if answer.is_correct else 'wrong' }}">
             <div>
                 <p class="prompt">{{ answer.question.prompt }}</p>
@@ -33,9 +40,5 @@
         </li>
         {% endfor %}
     </ul>
-    <div class="actions">
-        <a class="btn primary" href="{{ url_for('quiz_select') }}">Pick another quiz</a>
-        <a class="btn ghost" href="{{ url_for('dashboard') }}">Back to dashboard</a>
-    </div>
 </div>
 {% endblock %}

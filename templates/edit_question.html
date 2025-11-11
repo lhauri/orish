@@ -8,15 +8,20 @@
         <label>Word<input name="word" value="{{ question['word'] }}" required></label>
         {% elif category == 'grammar' %}
         <label>Sentence<textarea name="sentence" required>{{ question['sentence_with_placeholder'] }}</textarea></label>
-        {% else %}
+        {% elif category == 'reading' %}
         <label>Title<input name="title" value="{{ question['title'] }}" required></label>
         <label>Text<textarea name="text" rows="4" required>{{ question['text'] }}</textarea></label>
         <label>Question<input name="question" value="{{ question['question'] }}" required></label>
+        {% else %}
+        <label>Prompt<textarea name="prompt" rows="4" required>{{ question['prompt'] }}</textarea></label>
+        <label>Reference answer<textarea name="reference_answer" rows="3" required>{{ question['reference_answer'] }}</textarea></label>
         {% endif %}
+        {% if category != 'translation' %}
         <label>Correct answer<input name="correct_answer" value="{{ question['correct_answer'] }}" required></label>
         <label>Wrong option 1<input name="wrong1" value="{{ question['wrong1'] }}" required></label>
         <label>Wrong option 2<input name="wrong2" value="{{ question['wrong2'] }}" required></label>
         <label>Wrong option 3<input name="wrong3" value="{{ question['wrong3'] }}" required></label>
+        {% endif %}
         <div class="form-actions">
             <button class="btn primary">Update</button>
             <a class="btn ghost" href="{{ url_for('admin_questions', category=category) }}">Cancel</a>

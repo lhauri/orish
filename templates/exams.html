@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}Exams • Orish{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-head">
+        <div>
+            <p class="tag">Active exams</p>
+            <h2>Ready when you are</h2>
+            <p class="muted">Full-length attempts are shared with teachers so they can review strengths and gaps.</p>
+        </div>
+    </div>
+    <div class="exam-grid">
+        {% for exam in exams %}
+        <div class="exam-card">
+            <p class="tag">{{ categories[exam.category].label }}</p>
+            <h3>{{ exam.title }}</h3>
+            <p>{{ exam.description or 'Focused practice with auto-tracking.' }}</p>
+            <small>{{ exam.questions }} questions • {{ categories[exam.category].label }}</small>
+            <a class="btn primary" href="{{ url_for('take_exam', exam_id=exam.id) }}">Take exam</a>
+        </div>
+        {% else %}
+        <p>No active exams yet.</p>
+        {% endfor %}
+    </div>
+</div>
+<div class="card">
+    <h3>Your latest attempts</h3>
+    <div class="table-scroll">
+        <table class="attempt-table">
+            <thead>
+                <tr>
+                    <th>Exam</th>
+                    <th>Date</th>
+                    <th>Score</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for attempt in attempts %}
+                <tr>
+                    <td>{{ attempt.title }}</td>
+                    <td>{{ attempt.created_at }}</td>
+                    <td>{{ attempt.score }} / {{ attempt.total }}</td>
+                    <td><a class="btn ghost" href="{{ url_for('exam_result', attempt_id=attempt.id) }}">Open</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4">No attempts yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% if g.user['is_admin'] %}
+<div class="card">
+    <h3>Create quick exam</h3>
+    <form class="form-grid" method="post" action="{{ url_for('create_exam') }}">
+        <label>Title<input name="title" required></label>
+        <label>Description<textarea name="description" rows="2"></textarea></label>
+        <label>Category
+            <select name="category">
+                {% for key, meta in categories.items() %}
+                <option value="{{ key }}">{{ meta.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Questions<input type="number" name="questions" value="5" min="3" max="15"></label>
+        <button class="btn primary">Publish</button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

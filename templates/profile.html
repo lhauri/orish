@@ -11,7 +11,7 @@
         </div>
     </div>
     <div class="card">
-        <h3>Recent results</h3>
+        <h3>Recent quiz results</h3>
         <ul class="result-list">
             {% for result in results %}
             <li>
@@ -25,6 +25,33 @@
             <li>No quizzes yet. Start one!</li>
             {% endfor %}
         </ul>
+    </div>
+</section>
+<section class="card">
+    <h3>Exam attempts</h3>
+    <div class="table-scroll">
+        <table class="attempt-table">
+            <thead>
+                <tr>
+                    <th>Exam</th>
+                    <th>Date</th>
+                    <th>Score</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for attempt in exam_attempts %}
+                <tr>
+                    <td>{{ attempt.title }}</td>
+                    <td>{{ attempt.created_at }}</td>
+                    <td>{{ attempt.score }} / {{ attempt.total }}</td>
+                    <td><a class="btn ghost" href="{{ url_for('exam_result', attempt_id=attempt.id) }}">View</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4">No exam data yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </section>
 {% endblock %}

@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}{{ code }} • Orish{% endblock %}
+{% block content %}
+<div class="card error-card">
+    <p class="tag">Error {{ code }}</p>
+    <h2>{{ message }}</h2>
+    <p class="muted">If this persists, let your teacher know.</p>
+    <a class="btn primary" href="{{ url_for('dashboard') if g.user else url_for('home') }}">Go back</a>
+</div>
+{% endblock %}

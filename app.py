@@ -3,16 +3,18 @@
 How to run locally:
 1. (Optional) Create & activate a virtual environment.
 2. Install dependencies: pip install -r requirements.txt (or `pip install flask` if requirements are unavailable).
-3. Initialize the SQLite database with sample data: python init_db.py.
+3. Create a .env file (see .env.example) and initialize the SQLite database: python init_db.py.
 4. Start the development server: python app.py.
 """
 
+import json
 import os
 import random
 import sqlite3
 from datetime import datetime
 from functools import wraps
 
+from dotenv import load_dotenv
 from flask import (
     Flask,
     abort,
@@ -24,7 +26,10 @@ from flask import (
     session,
     url_for,
 )
+from openai import OpenAI
 from werkzeug.security import check_password_hash, generate_password_hash
+
+load_dotenv()
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, "orish.db")
@@ -35,12 +40,131 @@ app.config.update(
     DATABASE=DATABASE_PATH,
 )
 
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+ai_client = None
+
+
+def get_ai_client():
+    """Create a cached OpenAI-compatible client for DeepSeek."""
+    global ai_client
+    if not DEEPSEEK_API_KEY:
+        return None
+    if ai_client is None:
+        try:
+            ai_client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
+        except Exception as exc:  # pragma: no cover - defensive
+            app.logger.warning("Could not initialize DeepSeek client: %s", exc)
+            return None
+    return ai_client
+
+
+def evaluate_text_answer(prompt, reference, student_answer):
+    """Use DeepSeek (or a fallback) to judge free-text answers."""
+    student_answer = (student_answer or "").strip()
+    reference = (reference or "").strip()
+    if not student_answer:
+        return {
+            "is_correct": False,
+            "feedback": "No answer submitted.",
+            "explanation": "Please provide a response so we can review it.",
+        }
+
+    fallback_correct = student_answer.lower() == reference.lower()
+    base_feedback = {
+        "is_correct": fallback_correct,
+        "feedback": (
+            "Looks good! Keep it up." if fallback_correct else f"Expected: {reference}"
+        ),
+        "explanation": "",
+    }
+
+    client = get_ai_client()
+    if not client:
+        return base_feedback
+
+    try:
+        response = client.responses.create(
+            model=DEEPSEEK_MODEL,
+            temperature=0.2,
+            input=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an English teacher. Strictly reply with a JSON object "
+                        'like {"is_correct": bool, "feedback": "...", "explanation": "..."}'
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Question: {prompt}\nExpected answer: {reference}\n"
+                        f"Student answer: {student_answer}\nJudge correctness for an exam."
+                    ),
+                },
+            ],
+        )
+        text = ""
+        if getattr(response, "output", None):
+            text = response.output[0].content[0].text
+        elif getattr(response, "output_text", None):
+            text = response.output_text[0]
+        data = json.loads(text)
+        return {
+            "is_correct": bool(data.get("is_correct")),
+            "feedback": data.get("feedback") or base_feedback["feedback"],
+            "explanation": data.get("explanation", ""),
+        }
+    except Exception as exc:  # pragma: no cover - defensive
+        app.logger.warning("DeepSeek grading failed: %s", exc)
+        return base_feedback
+
+
+def summarize_attempt_for_teacher(exam_title, answers):
+    """Ask DeepSeek for a concise teacher-facing summary."""
+    client = get_ai_client()
+    if not client or not answers:
+        return None
+    serialized = "\n".join(
+        f"Q: {a['question']['prompt']} | Student: {a.get('selected')} | "
+        f"Correct: {a['question']['correct_answer']} | Result: {a['is_correct']} | "
+        f"Feedback: {a.get('feedback') or ''}"
+        for a in answers
+    )
+    try:
+        response = client.responses.create(
+            model=DEEPSEEK_MODEL,
+            temperature=0.3,
+            input=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a concise English teacher assistant. Summarize performance "
+                        "for another teacher in <=4 sentences."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Exam: {exam_title}\nDetails:\n{serialized}",
+                },
+            ],
+        )
+        if getattr(response, "output", None):
+            return response.output[0].content[0].text.strip()
+        if getattr(response, "output_text", None):
+            return response.output_text[0].strip()
+    except Exception as exc:  # pragma: no cover
+        app.logger.warning("DeepSeek summary failed: %s", exc)
+    return None
+
 CATEGORIES = {
     "vocabulary": {
         "label": "Vocabulary",
         "icon": "type",
         "table": "questions_vocabulary",
         "prompt_builder": lambda row: f"Select the correct meaning for the word '{row['word']}'.",
+        "answer_type": "mcq",
     },
     "grammar": {
         "label": "Grammar",
@@ -49,12 +173,21 @@ CATEGORIES = {
         "prompt_builder": lambda row: row[
             "sentence_with_placeholder"
         ].replace("__", "____"),
+        "answer_type": "mcq",
     },
     "reading": {
         "label": "Reading",
         "icon": "file-text",
         "table": "questions_reading",
         "prompt_builder": lambda row: row["question"],
+        "answer_type": "mcq",
+    },
+    "translation": {
+        "label": "Translation",
+        "icon": "languages",
+        "table": "questions_translation",
+        "prompt_builder": lambda row: row["prompt"],
+        "answer_type": "text",
     },
 }
 
@@ -115,6 +248,12 @@ def init_tables():
             wrong3 TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS questions_translation (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prompt TEXT NOT NULL,
+            reference_answer TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS results (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -124,9 +263,41 @@ def init_tables():
             created_at TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users (id)
         );
+
+        CREATE TABLE IF NOT EXISTS exams (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT,
+            category TEXT NOT NULL,
+            questions INTEGER DEFAULT 5,
+            is_active INTEGER DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS exam_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            exam_id INTEGER NOT NULL,
+            score INTEGER NOT NULL,
+            total INTEGER NOT NULL,
+            details TEXT NOT NULL,
+            ai_feedback TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (exam_id) REFERENCES exams (id)
+        );
         """
     )
     db.commit()
+
+
+def row_value(row, key, default=None):
+    """Safe helper for sqlite Row objects."""
+    try:
+        if key in row.keys():
+            return row[key]
+    except Exception:
+        pass
+    return default
 
 
 def login_required(view):
@@ -179,31 +350,43 @@ def fetch_random_questions(category_key, limit=5):
     ).fetchall()
     questions = []
     for row in rows:
-        options = [
-            row["correct_answer"],
-            row["wrong1"],
-            row["wrong2"],
-            row["wrong3"],
-        ]
-        options = [opt for opt in options if opt]
-        random.shuffle(options)
+        row_keys = row.keys()
+        correct_answer = (
+            row_value(row, "correct_answer")
+            if "correct_answer" in row_keys
+            else row_value(row, "reference_answer")
+        )
         question = {
             "id": row["id"],
             "prompt": category["prompt_builder"](row),
-            "options": options,
-            "correct_answer": row["correct_answer"],
+            "correct_answer": correct_answer,
+            "answer_type": category.get("answer_type", "mcq"),
         }
+        if question["answer_type"] == "mcq":
+            options = [
+                row_value(row, "correct_answer"),
+                row_value(row, "wrong1"),
+                row_value(row, "wrong2"),
+                row_value(row, "wrong3"),
+            ]
+            options = [opt for opt in options if opt]
+            random.shuffle(options)
+            question["options"] = options
         if category_key == "vocabulary":
             question["meta"] = {"word": row["word"]}
         elif category_key == "grammar":
             question["meta"] = {
                 "sentence": row["sentence_with_placeholder"].replace("__", "____")
             }
-        else:
+        elif category_key == "reading":
             question["meta"] = {
                 "title": row["title"],
                 "text": row["text"],
             }
+        else:
+            question["meta"] = {}
+        if question["answer_type"] == "text":
+            question["meta"]["reference_hint"] = row_value(row, "reference_answer")
         questions.append(question)
     return questions
 
@@ -304,7 +487,18 @@ def profile():
         "SELECT * FROM results WHERE user_id = ? ORDER BY created_at DESC LIMIT 10",
         (g.user["id"],),
     ).fetchall()
-    return render_template("profile.html", results=results)
+    exam_attempts = db.execute(
+        """
+        SELECT ea.*, e.title
+        FROM exam_attempts ea
+        JOIN exams e ON e.id = ea.exam_id
+        WHERE ea.user_id = ?
+        ORDER BY ea.created_at DESC
+        LIMIT 5
+        """,
+        (g.user["id"],),
+    ).fetchall()
+    return render_template("profile.html", results=results, exam_attempts=exam_attempts)
 
 
 @app.route("/quiz/select")
@@ -313,10 +507,236 @@ def quiz_select():
     return render_template("quiz_select.html", categories=CATEGORIES)
 
 
+@app.route("/exams")
+@login_required
+def exams():
+    db = get_db()
+    exams = db.execute(
+        "SELECT * FROM exams WHERE is_active = 1 ORDER BY id DESC"
+    ).fetchall()
+    attempts = db.execute(
+        """
+        SELECT ea.*, e.title
+        FROM exam_attempts ea
+        JOIN exams e ON e.id = ea.exam_id
+        WHERE ea.user_id = ?
+        ORDER BY ea.created_at DESC
+        LIMIT 10
+        """,
+        (g.user["id"],),
+    ).fetchall()
+    return render_template("exams.html", exams=exams, attempts=attempts, categories=CATEGORIES)
+
+
+@app.route("/exams/create", methods=["POST"])
+@admin_required
+def create_exam():
+    title = request.form.get("title", "").strip()
+    description = request.form.get("description", "").strip()
+    category = request.form.get("category", "vocabulary")
+    try:
+        questions = int(request.form.get("questions", 5))
+    except ValueError:
+        questions = 5
+    if not title or category not in CATEGORIES:
+        flash("Please provide a valid title and category.", "warning")
+        return redirect(url_for("exams"))
+    questions = max(3, min(questions, 15))
+    db = get_db()
+    db.execute(
+        "INSERT INTO exams (title, description, category, questions) VALUES (?, ?, ?, ?)",
+        (title, description, category, questions),
+    )
+    db.commit()
+    flash("Exam created and ready to assign.", "success")
+    return redirect(url_for("exams"))
+
+
+def load_exam(exam_id):
+    exam = (
+        get_db()
+        .execute("SELECT * FROM exams WHERE id = ?", (exam_id,))
+        .fetchone()
+    )
+    return exam
+
+
+@app.route("/exams/<int:exam_id>/take", methods=["GET", "POST"])
+@login_required
+def take_exam(exam_id):
+    exam = load_exam(exam_id)
+    if not exam or not exam["is_active"]:
+        flash("This exam is no longer available.", "warning")
+        return redirect(url_for("exams"))
+
+    exam_state = session.get("exam")
+    if not exam_state or exam_state.get("exam_id") != exam_id:
+        start_exam_session(exam)
+        exam_state = session["exam"]
+
+    if request.method == "POST":
+        exam_state = session.get("exam")
+        current_index = exam_state["current"]
+        question = exam_state["questions"][current_index]
+        if question["answer_type"] == "text":
+            selected = request.form.get("text_answer", "").strip()
+            evaluation = evaluate_text_answer(
+                question["prompt"], question["correct_answer"], selected
+            )
+            is_correct = evaluation["is_correct"]
+            feedback = evaluation.get("feedback")
+            explanation = evaluation.get("explanation")
+        else:
+            selected = request.form.get("answer")
+            if not selected:
+                flash("Please pick an option to continue.", "warning")
+                return redirect(url_for("take_exam", exam_id=exam_id))
+            is_correct = selected == question["correct_answer"]
+            feedback = ""
+            explanation = ""
+        exam_state["answers"].append(
+            {
+                "question": question,
+                "selected": selected,
+                "is_correct": is_correct,
+                "feedback": feedback,
+                "explanation": explanation,
+            }
+        )
+        if is_correct:
+            exam_state["score"] += 1
+        exam_state["current"] += 1
+        session["exam"] = exam_state
+
+        if exam_state["current"] >= exam_state["total"]:
+            db = get_db()
+            details_json = json.dumps(exam_state["answers"])
+            ai_summary = summarize_attempt_for_teacher(
+                exam_state["title"], exam_state["answers"]
+            )
+            cursor = db.execute(
+                """
+                INSERT INTO exam_attempts (user_id, exam_id, score, total, details, ai_feedback, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    g.user["id"],
+                    exam_id,
+                    exam_state["score"],
+                    exam_state["total"],
+                    details_json,
+                    ai_summary,
+                    datetime.utcnow().isoformat(),
+                ),
+            )
+            db.commit()
+            attempt_id = cursor.lastrowid
+            session.pop("exam", None)
+            return redirect(url_for("exam_result", attempt_id=attempt_id))
+
+    return render_template(
+        "exam_take.html",
+        exam=exam,
+        exam_state=exam_state,
+        question=exam_state["questions"][exam_state["current"]],
+        current=exam_state["current"] + 1,
+        total=exam_state["total"],
+        categories=CATEGORIES,
+    )
+
+
+@app.route("/exams/results/<int:attempt_id>")
+@login_required
+def exam_result(attempt_id):
+    db = get_db()
+    attempt = db.execute(
+        """
+        SELECT ea.*, e.title, e.category, u.username
+        FROM exam_attempts ea
+        JOIN exams e ON e.id = ea.exam_id
+        JOIN users u ON u.id = ea.user_id
+        WHERE ea.id = ?
+        """,
+        (attempt_id,),
+    ).fetchone()
+    if not attempt:
+        flash("Exam attempt not found.", "warning")
+        return redirect(url_for("exams"))
+    if attempt["user_id"] != g.user["id"] and not g.user["is_admin"]:
+        flash("You do not have access to that report.", "danger")
+        return redirect(url_for("dashboard"))
+    answers = json.loads(attempt["details"])
+    return render_template(
+        "exam_results.html",
+        attempt=attempt,
+        answers=answers,
+        category=CATEGORIES.get(attempt["category"]),
+    )
+
+
+@app.route("/admin/exams/attempts")
+@admin_required
+def admin_exam_attempts():
+    db = get_db()
+    attempts = db.execute(
+        """
+        SELECT ea.*, e.title, u.username
+        FROM exam_attempts ea
+        JOIN exams e ON e.id = ea.exam_id
+        JOIN users u ON u.id = ea.user_id
+        ORDER BY ea.created_at DESC
+        LIMIT 50
+        """
+    ).fetchall()
+    return render_template("admin_exam_attempts.html", attempts=attempts)
+
+
+@app.route("/admin/exams/attempts/<int:attempt_id>")
+@admin_required
+def admin_exam_attempt_detail(attempt_id):
+    db = get_db()
+    attempt = db.execute(
+        """
+        SELECT ea.*, e.title, e.category, u.username, u.email
+        FROM exam_attempts ea
+        JOIN exams e ON e.id = ea.exam_id
+        JOIN users u ON u.id = ea.user_id
+        WHERE ea.id = ?
+        """,
+        (attempt_id,),
+    ).fetchone()
+    if not attempt:
+        flash("Attempt not found.", "warning")
+        return redirect(url_for("admin_exam_attempts"))
+    answers = json.loads(attempt["details"])
+    return render_template(
+        "exam_attempt_detail.html",
+        attempt=attempt,
+        answers=answers,
+        category=CATEGORIES.get(attempt["category"]),
+    )
+
+
 def start_quiz_session(category_key):
     questions = fetch_random_questions(category_key, limit=5)
     session["quiz"] = {
         "category": category_key,
+        "questions": questions,
+        "current": 0,
+        "score": 0,
+        "answers": [],
+        "total": len(questions),
+    }
+
+
+def start_exam_session(exam_row):
+    questions = fetch_random_questions(
+        exam_row["category"], limit=exam_row["questions"]
+    )
+    session["exam"] = {
+        "exam_id": exam_row["id"],
+        "title": exam_row["title"],
+        "category": exam_row["category"],
         "questions": questions,
         "current": 0,
         "score": 0,
@@ -338,16 +758,32 @@ def quiz(category):
         quiz_state = session["quiz"]
 
     if request.method == "POST":
-        selected = request.form.get("answer")
         quiz_state = session.get("quiz")
         current_index = quiz_state["current"]
         question = quiz_state["questions"][current_index]
-        is_correct = selected == question["correct_answer"]
+        if question["answer_type"] == "text":
+            selected = request.form.get("text_answer", "").strip()
+            evaluation = evaluate_text_answer(
+                question["prompt"], question["correct_answer"], selected
+            )
+            is_correct = evaluation["is_correct"]
+            feedback = evaluation.get("feedback")
+            explanation = evaluation.get("explanation")
+        else:
+            selected = request.form.get("answer")
+            if not selected:
+                flash("Please pick an option to continue.", "warning")
+                return redirect(url_for("quiz", category=category))
+            is_correct = selected == question["correct_answer"]
+            feedback = ""
+            explanation = ""
         quiz_state["answers"].append(
             {
                 "question": question,
                 "selected": selected,
                 "is_correct": is_correct,
+                "feedback": feedback,
+                "explanation": explanation,
             }
         )
         if is_correct:
@@ -440,7 +876,7 @@ def add_question(category):
                 f"INSERT INTO {table} (sentence_with_placeholder, correct_answer, wrong1, wrong2, wrong3) VALUES (?, ?, ?, ?, ?)",
                 (sentence, correct, wrongs[0], wrongs[1], wrongs[2]),
             )
-    else:
+    elif category == "reading":
         title = request.form.get("title", "").strip()
         text = request.form.get("text", "").strip()
         question_text = request.form.get("question", "").strip()
@@ -450,6 +886,14 @@ def add_question(category):
             db.execute(
                 f"INSERT INTO {table} (title, text, question, correct_answer, wrong1, wrong2, wrong3) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (title, text, question_text, correct, wrongs[0], wrongs[1], wrongs[2]),
+            )
+    else:  # translation
+        prompt = request.form.get("prompt", "").strip()
+        reference = request.form.get("reference_answer", "").strip()
+        if prompt and reference:
+            db.execute(
+                f"INSERT INTO {table} (prompt, reference_answer) VALUES (?, ?)",
+                (prompt, reference),
             )
     db.commit()
     flash("Question added.", "success")
@@ -511,7 +955,7 @@ def edit_question(category, question_id):
                 f"UPDATE {table} SET sentence_with_placeholder=?, correct_answer=?, wrong1=?, wrong2=?, wrong3=? WHERE id = ?",
                 fields,
             )
-        else:
+        elif category == "reading":
             fields = (
                 request.form.get("title", "").strip(),
                 request.form.get("text", "").strip(),
@@ -526,6 +970,16 @@ def edit_question(category, question_id):
                 f"UPDATE {table} SET title=?, text=?, question=?, correct_answer=?, wrong1=?, wrong2=?, wrong3=? WHERE id = ?",
                 fields,
             )
+        else:  # translation
+            fields = (
+                request.form.get("prompt", "").strip(),
+                request.form.get("reference_answer", "").strip(),
+                question_id,
+            )
+            db.execute(
+                f"UPDATE {table} SET prompt=?, reference_answer=? WHERE id = ?",
+                fields,
+            )
         db.commit()
         flash("Question updated.", "success")
         return redirect(url_for("admin_questions", category=category))
@@ -535,6 +989,26 @@ def edit_question(category, question_id):
         category=category,
         categories=CATEGORIES,
         question=question,
+    )
+
+
+@app.errorhandler(404)
+def not_found(error):
+    return (
+        render_template("error.html", code=404, message="The page you requested was not found."),
+        404,
+    )
+
+
+@app.errorhandler(500)
+def server_error(error):  # pragma: no cover - best effort
+    return (
+        render_template(
+            "error.html",
+            code=500,
+            message="Something unexpected happened. Please try again in a moment.",
+        ),
+        500,
     )
 
 

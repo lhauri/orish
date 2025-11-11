@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Exam Monitor • Orish{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-head">
+        <div>
+            <p class="tag">Teacher view</p>
+            <h2>Recent exam attempts</h2>
+            <p class="muted">Quickly spot who might need guidance.</p>
+        </div>
+    </div>
+    <div class="table-scroll">
+        <table class="attempt-table">
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Exam</th>
+                    <th>Date</th>
+                    <th>Score</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for attempt in attempts %}
+                <tr>
+                    <td>{{ attempt.username }}</td>
+                    <td>{{ attempt.title }}</td>
+                    <td>{{ attempt.created_at }}</td>
+                    <td>{{ attempt.score }} / {{ attempt.total }}</td>
+                    <td><a class="btn ghost" href="{{ url_for('admin_exam_attempt_detail', attempt_id=attempt.id) }}">Details</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5">No attempts recorded yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

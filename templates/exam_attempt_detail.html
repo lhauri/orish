@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Attempt • Orish{% endblock %}
+{% block content %}
+<div class="card">
+    <p class="tag">{{ attempt.title }}</p>
+    <h2>{{ attempt.username }} · {{ attempt.score }} / {{ attempt.total }}</h2>
+    <p class="muted">{{ attempt.email }} • {{ attempt.created_at }}</p>
+    {% if attempt.ai_feedback %}
+    <div class="card highlight">
+        <p class="tag">AI notes</p>
+        <p>{{ attempt.ai_feedback }}</p>
+    </div>
+    {% endif %}
+    <ul class="answer-list">
+        {% for answer in answers %}
+        <li class="answer {{ 'correct' if answer.is_correct else 'wrong' }}">
+            <div>
+                <strong>{{ loop.index }}.</strong> {{ answer.question.prompt }}
+            </div>
+            <div class="answer-detail">
+                <p><strong>Student:</strong> {{ answer.selected or 'No answer' }}</p>
+                <p><strong>Expected:</strong> {{ answer.question.correct_answer }}</p>
+                {% if answer.feedback %}<p class="feedback">{{ answer.feedback }}</p>{% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}

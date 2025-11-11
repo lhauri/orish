@@ -17,7 +17,12 @@ body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
+}
+
+body.layout {
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
 a {
@@ -73,7 +78,9 @@ a {
 .content {
     padding: 2rem;
     max-width: 1100px;
+    width: 100%;
     margin: 0 auto;
+    flex: 1 0 auto;
 }
 
 .card {
@@ -82,6 +89,18 @@ a {
     padding: 2rem;
     box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
     margin-bottom: 1.5rem;
+}
+
+.card.highlight {
+    background: linear-gradient(150deg, #fdf4ff, #eef2ff);
+}
+
+.card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
 }
 
 .card-grid {
@@ -166,6 +185,20 @@ a {
     padding: 0.4rem 0;
 }
 
+.hero-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.hero-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--muted);
+    margin-bottom: 0.35rem;
+}
+
 .tag {
     text-transform: uppercase;
     font-size: 0.75rem;
@@ -191,6 +224,30 @@ a {
     background: #f5f3ff;
     padding: 0.8rem 1rem;
     border-radius: 16px;
+}
+
+.result-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.result-list li {
+    display: flex;
+    justify-content: space-between;
+    background: #f5f3ff;
+    border-radius: 16px;
+    padding: 0.9rem 1.1rem;
+}
+
+.placeholder {
+    margin-top: 1rem;
+    padding: 1rem 1.2rem;
+    border-radius: 16px;
+    background: #f4f4ff;
 }
 
 .flash-container {
@@ -242,6 +299,21 @@ select {
     gap: 0.7rem;
 }
 
+.quiz-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.reading {
+    background: #f8f6ff;
+    padding: 1rem;
+    border-radius: 16px;
+    margin-bottom: 1rem;
+}
+
 .option {
     display: flex;
     align-items: center;
@@ -282,6 +354,16 @@ select {
     background: #f4f3ff;
 }
 
+.answer .feedback {
+    margin-top: 0.5rem;
+    color: var(--muted);
+}
+
+.answer .explanation {
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
 .answer.correct { border: 1px solid #a7f3d0; }
 .answer.wrong { border: 1px solid #fecaca; }
 
@@ -314,6 +396,66 @@ select {
     align-items: center;
 }
 
+.exam-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+}
+
+.exam-card {
+    padding: 1.5rem;
+    border-radius: 24px;
+    background: linear-gradient(160deg, #fdf4ff, #f5f3ff);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.exam-card small {
+    color: var(--muted);
+}
+
+.attempt-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.attempt-table th,
+.attempt-table td {
+    padding: 0.75rem 0.5rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.table-scroll {
+    overflow-x: auto;
+}
+
+.text-answer {
+    width: 100%;
+    border-radius: 18px;
+    border: 1px solid rgba(0,0,0,0.08);
+    background: #f8f5ff;
+    padding: 1rem;
+    min-height: 140px;
+    resize: vertical;
+}
+
+.helper {
+    color: var(--muted);
+}
+
+.hint {
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.error-card {
+    text-align: center;
+    padding: 3rem 2rem;
+}
+
 .mindmap-canvas {
     position: relative;
     min-height: 360px;
@@ -338,6 +480,7 @@ select {
     text-align: center;
     padding: 2rem;
     color: var(--muted);
+    margin-top: auto;
 }
 
 @media (max-width: 768px) {
@@ -345,7 +488,13 @@ select {
         flex-direction: column;
         gap: 1rem;
     }
+    .nav-links {
+        justify-content: center;
+    }
     .content {
         padding: 1.5rem;
+    }
+    .form-actions {
+        flex-direction: column;
     }
 }

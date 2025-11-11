@@ -9,7 +9,13 @@
         <div class="mini-card">
             <i data-lucide="{{ meta.icon }}"></i>
             <h3>{{ meta.label }}</h3>
-            <p>Sharpen your {{ meta.label.lower() }} skills.</p>
+            <p>
+                {% if key == 'translation' %}
+                Write short translations and receive AI corrections.
+                {% else %}
+                Sharpen your {{ meta.label.lower() }} skills.
+                {% endif %}
+            </p>
             <a class="btn primary" href="{{ url_for('quiz', category=key) }}">Start quiz</a>
         </div>
         {% endfor %}

@@ -124,6 +124,21 @@ READING_QUESTIONS = [
     ),
 ]
 
+TRANSLATION_QUESTIONS = [
+    ("Translate into English: \"Ich freue mich auf das Wochenende.\"", "I am looking forward to the weekend."),
+    ("Translate into English: \"Wir bereiten uns auf die Prüfung vor.\"", "We are preparing for the exam."),
+    ("Translate into English: \"Kannst du mir bitte helfen?\"", "Can you help me please?"),
+    ("Translate into English: \"Sie liest jeden Abend ein Buch.\"", "She reads a book every evening."),
+    ("Translate this into English: \"Das Treffen wurde verschoben.\"", "The meeting was postponed."),
+]
+
+EXAMS = [
+    ("Vocabulary Pulse", "Mixed-choice warm up", "vocabulary", 5, 1),
+    ("Grammar Sprint", "Fill in the blanks quickly", "grammar", 5, 1),
+    ("Reading Focus", "Short passages with comprehension", "reading", 5, 1),
+    ("Translation Check", "AI-evaluated translations", "translation", 5, 1),
+]
+
 
 def seed_table(db, table, rows, columns):
     placeholders = ", ".join(["?"] * len(columns))
@@ -189,6 +204,25 @@ def main():
                 ],
             )
             print("Seeded reading questions")
+
+        if db.execute("SELECT COUNT(*) FROM questions_translation").fetchone()[0] == 0:
+            seed_table(
+                db,
+                "questions_translation",
+                TRANSLATION_QUESTIONS,
+                [
+                    "prompt",
+                    "reference_answer",
+                ],
+            )
+            print("Seeded translation prompts")
+
+        if db.execute("SELECT COUNT(*) FROM exams").fetchone()[0] == 0:
+            db.executemany(
+                "INSERT INTO exams (title, description, category, questions, is_active) VALUES (?, ?, ?, ?, ?)",
+                EXAMS,
+            )
+            print("Seeded sample exams")
 
         db.commit()
         print("Database ready! Run `python app.py` to start Orish.")

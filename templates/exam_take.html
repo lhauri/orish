@@ -1,17 +1,17 @@
 {% extends 'base.html' %}
-{% block title %}{{ category_meta.label }} Quiz • Orish{% endblock %}
+{% block title %}{{ exam.title }} • Orish{% endblock %}
 {% block content %}
 <div class="card quiz-card">
     <div class="quiz-header">
         <div>
-            <p class="tag">{{ category_meta.label }}</p>
-            <h2>Question {{ current }} / {{ total }}</h2>
+            <p class="tag">{{ categories[exam.category].label }}</p>
+            <h2>{{ exam.title }} · Question {{ current }} / {{ total }}</h2>
         </div>
         <div class="progress">
             <div class="progress-bar" style="width: {{ (current / total) * 100 }}%"></div>
         </div>
     </div>
-    {% if category == 'reading' %}
+    {% if question.meta.title %}
     <article class="reading">
         <h4>{{ question.meta.title }}</h4>
         <p>{{ question.meta.text }}</p>
@@ -20,8 +20,8 @@
     <form method="post" class="quiz-form">
         <p class="prompt">{{ question.prompt }}</p>
         {% if question.answer_type == 'text' %}
-        <textarea class="text-answer" name="text_answer" placeholder="Type your answer..." required></textarea>
-        <p class="hint">AI (DeepSeek) will compare your answer with the expected translation.</p>
+        <textarea class="text-answer" name="text_answer" placeholder="Write your response" required></textarea>
+        <p class="hint">DeepSeek reviews open answers and returns teacher-style feedback.</p>
         {% else %}
         <div class="options">
             {% for option in question.options %}
