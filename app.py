@@ -13,6 +13,7 @@ import os
 import random
 import re
 import sqlite3
+from collections import Counter
 from datetime import datetime
 from functools import wraps
 from io import BytesIO
@@ -23,13 +24,14 @@ from flask import (
     abort,
     flash,
     g,
+    has_request_context,
     redirect,
     render_template,
     request,
     session,
     url_for,
 )
-from openai import OpenAI
+import requests
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -51,24 +53,9 @@ app.config.update(
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-ai_client = None
+DEEPSEEK_TIMEOUT = 30
 
 ALLOWED_UPLOADS = {".txt", ".md", ".pdf", ".docx", ".xlsx", ".csv"}
-
-
-def get_ai_client():
-    """Create a cached OpenAI-compatible client for DeepSeek."""
-    global ai_client
-    if not DEEPSEEK_API_KEY:
-        return None
-    if ai_client is None:
-        try:
-            ai_client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
-        except Exception as exc:  # pragma: no cover - defensive
-            app.logger.warning("Could not initialize DeepSeek client: %s", exc)
-            return None
-        
-    return ai_client
 
 
 def evaluate_text_answer(prompt, reference, student_answer):
@@ -91,15 +78,9 @@ def evaluate_text_answer(prompt, reference, student_answer):
         "explanation": "",
     }
 
-    client = get_ai_client()
-    if not client:
-        return base_feedback
-
     try:
-        response = client.responses.create(
-            model=DEEPSEEK_MODEL,
-            temperature=0.2,
-            input=[
+        response = _perform_deepseek_request(
+            [
                 {
                     "role": "system",
                     "content": (
@@ -115,13 +96,12 @@ def evaluate_text_answer(prompt, reference, student_answer):
                     ),
                 },
             ],
+            temperature=0.2,
         )
-        text = ""
-        if getattr(response, "output", None):
-            text = response.output[0].content[0].text
-        elif getattr(response, "output_text", None):
-            text = response.output_text[0]
-        data = json.loads(text)
+        text = _extract_ai_text(response)
+        if not text:
+            raise RuntimeError("Empty AI feedback.")
+        data = json.loads(_sanitize_ai_text_payload(text))
         return {
             "is_correct": bool(data.get("is_correct")),
             "feedback": data.get("feedback") or base_feedback["feedback"],
@@ -134,8 +114,7 @@ def evaluate_text_answer(prompt, reference, student_answer):
 
 def summarize_attempt_for_teacher(exam_title, answers):
     """Ask DeepSeek for a concise teacher-facing summary."""
-    client = get_ai_client()
-    if not client or not answers:
+    if not DEEPSEEK_API_KEY or not answers:
         return None
     serialized = "\n".join(
         f"Q: {a['question']['prompt']} | Student: {a.get('selected')} | "
@@ -144,10 +123,8 @@ def summarize_attempt_for_teacher(exam_title, answers):
         for a in answers
     )
     try:
-        response = client.responses.create(
-            model=DEEPSEEK_MODEL,
-            temperature=0.3,
-            input=[
+        response = _perform_deepseek_request(
+            [
                 {
                     "role": "system",
                     "content": (
@@ -160,11 +137,10 @@ def summarize_attempt_for_teacher(exam_title, answers):
                     "content": f"Exam: {exam_title}\nDetails:\n{serialized}",
                 },
             ],
+            temperature=0.3,
         )
-        if getattr(response, "output", None):
-            return response.output[0].content[0].text.strip()
-        if getattr(response, "output_text", None):
-            return response.output_text[0].strip()
+        text = _extract_ai_text(response)
+        return text.strip() if text else None
     except Exception as exc:  # pragma: no cover
         app.logger.warning("DeepSeek summary failed: %s", exc)
     return None
@@ -210,6 +186,150 @@ QUESTION_SCHEMAS = {
 }
 
 JSON_BLOCK_RE = re.compile(r"(\{.*\}|\[.*\])", re.DOTALL)
+API_VERSION_RE = re.compile(r"/v\d+$")
+
+FALLBACK_GENERATED_QUESTIONS = {
+    "vocabulary": [
+        {
+            "word": "serene",
+            "correct_answer": "Calm and peaceful",
+            "wrong1": "Full of energy",
+            "wrong2": "Extremely loud",
+            "wrong3": "Difficult to find",
+        },
+        {
+            "word": "anticipate",
+            "correct_answer": "Expect or look forward to",
+            "wrong1": "Forget completely",
+            "wrong2": "Argue loudly",
+            "wrong3": "Hide from others",
+        },
+        {
+            "word": "versatile",
+            "correct_answer": "Able to do many things well",
+            "wrong1": "Afraid of change",
+            "wrong2": "Hard to see",
+            "wrong3": "Very expensive",
+        },
+    ],
+    "grammar": [
+        {
+            "sentence_with_placeholder": "The students ___ their essays before class.",
+            "correct_answer": "had finished",
+            "wrong1": "finishing",
+            "wrong2": "was finish",
+            "wrong3": "has finished",
+        },
+        {
+            "sentence_with_placeholder": "If she ___ earlier, we would have caught the train.",
+            "correct_answer": "had left",
+            "wrong1": "lefts",
+            "wrong2": "has leaving",
+            "wrong3": "leaves",
+        },
+    ],
+    "reading": [
+        {
+            "title": "Community Garden",
+            "text": "Volunteers meet each Saturday to water young plants and teach neighbors how to grow herbs on balconies.",
+            "question": "Why do people join the Saturday meetups?",
+            "correct_answer": "To care for plants and learn gardening tips",
+            "wrong1": "To compete in races",
+            "wrong2": "To sell vegetables for profit",
+            "wrong3": "To watch cooking shows",
+        },
+        {
+            "title": "Study Buddy",
+            "text": "Marco and Lani read aloud for fifteen minutes, then quiz each other on new expressions they highlighted.",
+            "question": "How do Marco and Lani review vocabulary?",
+            "correct_answer": "By quizzing each other after reading",
+            "wrong1": "By drawing the words",
+            "wrong2": "By sending text messages",
+            "wrong3": "By skipping the hard words",
+        },
+    ],
+    "translation": [
+        {
+            "prompt": "Translate into English: \"Ich lerne jeden Tag neue Wörter.\"",
+            "reference_answer": "I learn new words every day.",
+        },
+        {
+            "prompt": "Translate into English: \"Wir treffen uns morgen im Park.\"",
+            "reference_answer": "We are meeting in the park tomorrow.",
+        },
+    ],
+}
+
+FALLBACK_EXAM_TEMPLATES = [
+    {
+        "title": "Balanced Skills Check",
+        "description": "Quick assessment drawn from the built-in bank.",
+        "category": "vocabulary",
+        "questions": 5,
+    },
+    {
+        "title": "Reading Pulse",
+        "description": "Short comprehension drill with automatic grading.",
+        "category": "reading",
+        "questions": 4,
+    },
+    {
+        "title": "Grammar Tune-Up",
+        "description": "Targeted practice for tenses and connectors.",
+        "category": "grammar",
+        "questions": 5,
+    },
+]
+
+
+def _fallback_questions_for_category(category, max_items=3):
+    templates = FALLBACK_GENERATED_QUESTIONS.get(category, [])
+    if not templates:
+        return []
+    sample_count = min(len(templates), max_items)
+    sample = random.sample(templates, sample_count)
+    return [dict(item) for item in sample]
+
+
+def _local_text_analysis(snippet, custom_prompt=None):
+    text = (snippet or "").strip()
+    if not text:
+        return {
+            "summary": "No text supplied for analysis.",
+            "vocabulary": "",
+            "grammar": "",
+            "action_points": custom_prompt or "Upload a document to receive feedback.",
+        }
+    tokens = re.findall(r"[A-Za-z']+", text.lower())
+    word_count = len(tokens)
+    unique_words = len(set(tokens))
+    sentences = [s.strip() for s in re.split(r"[.!?]+", text) if s.strip()]
+    sentence_count = len(sentences) or 1
+    first_idea = sentences[0][:160] if sentences else text[:160]
+    common_words = [
+        word for word, _ in Counter(tokens).most_common(3) if len(word) > 3
+    ]
+    summary = (
+        f"Local analyzer reviewed about {word_count} words across {sentence_count} sentences. "
+        f"Opening idea: {first_idea}"
+    )
+    vocab = (
+        f"Frequently used terms: {', '.join(common_words)}"
+        if common_words
+        else "Vocabulary is varied; keep highlighting precise verbs."
+    )
+    grammar = (
+        "Mix short and long sentences for better rhythm."
+        if sentence_count > 3
+        else "Consider adding more supporting sentences for clarity."
+    )
+    action = custom_prompt or "Underline confusing areas and rewrite one sentence for clarity."
+    return {
+        "summary": summary,
+        "vocabulary": vocab,
+        "grammar": grammar,
+        "action_points": action,
+    }
 
 
 def _sanitize_ai_text_payload(content):
@@ -221,24 +341,88 @@ def _sanitize_ai_text_payload(content):
     return text
 
 
-def request_ai_json(system_prompt, user_prompt):
-    client = get_ai_client()
-    if not client:
+def _inform_ai_fallback(message):
+    if has_request_context():
+        flash(message, "info")
+
+
+def _deepseek_endpoint(path):
+    base = (DEEPSEEK_BASE_URL or "").strip() or "https://api.deepseek.com"
+    base = base.rstrip("/")
+    if not API_VERSION_RE.search(base):
+        base = f"{base}/v1"
+    return f"{base}{path}"
+
+
+def _perform_deepseek_request(messages, temperature=0.4):
+    if not DEEPSEEK_API_KEY:
         raise RuntimeError("AI key missing")
-    response = client.responses.create(
-        model=DEEPSEEK_MODEL,
-        temperature=0.4,
-        input=[
+    payload = {
+        "model": DEEPSEEK_MODEL,
+        "temperature": temperature,
+        "input": messages,
+    }
+    try:
+        response = requests.post(
+            _deepseek_endpoint("/responses"),
+            json=payload,
+            timeout=DEEPSEEK_TIMEOUT,
+            headers={
+                "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+                "Content-Type": "application/json",
+            },
+        )
+        response.raise_for_status()
+    except requests.HTTPError as exc:  # pragma: no cover - network
+        status = exc.response.status_code if exc.response else "?"
+        detail = ""
+        if exc.response is not None:
+            try:
+                detail = exc.response.json().get("error", {}).get("message", "")
+            except Exception:
+                detail = exc.response.text[:200]
+        message = f"AI request failed ({status}). {detail}".strip()
+        app.logger.warning("DeepSeek request failed: %s", message)
+        raise RuntimeError(message or "AI request failed") from exc
+    except requests.RequestException as exc:  # pragma: no cover - network
+        app.logger.warning("DeepSeek request failed: %s", exc)
+        raise RuntimeError("AI request failed. Please try again soon.") from exc
+    return response.json()
+
+
+def _extract_ai_text(data):
+    if not data:
+        return ""
+    output = data.get("output")
+    if isinstance(output, list) and output:
+        first = output[0] or {}
+        content = first.get("content") or []
+        for chunk in content:
+            if isinstance(chunk, dict):
+                text = chunk.get("text") or chunk.get("content")
+                if text:
+                    return text.strip()
+            elif isinstance(chunk, str) and chunk.strip():
+                return chunk.strip()
+    output_text = data.get("output_text")
+    if isinstance(output_text, list) and output_text:
+        joined = " ".join(str(part) for part in output_text if part)
+        if joined.strip():
+            return joined.strip()
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text.strip()
+    return ""
+
+
+def request_ai_json(system_prompt, user_prompt):
+    response = _perform_deepseek_request(
+        [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
+        temperature=0.4,
     )
-    content = ""
-    if getattr(response, "output", None):
-        content = response.output[0].content[0].text
-    elif getattr(response, "output_text", None):
-        content = response.output_text[0]
-    text = _sanitize_ai_text_payload(content)
+    text = _sanitize_ai_text_payload(_extract_ai_text(response))
     if not text:
         raise RuntimeError("AI response was empty.")
     try:
@@ -265,12 +449,17 @@ def generate_questions_with_prompt(category, prompt):
     user_prompt = (
         f"Category: {category}\nTeacher guidance: {prompt or 'Create standard practice.'}"
     )
+    use_fallback = False
     try:
         data = request_ai_json(instructions, user_prompt)
     except RuntimeError as exc:
-        raise RuntimeError(str(exc)) from exc
+        app.logger.warning("AI question generation failed: %s", exc)
+        data = _fallback_questions_for_category(category)
+        use_fallback = True
     except Exception as exc:  # pragma: no cover
-        raise RuntimeError("AI generation failed") from exc
+        app.logger.warning("AI generation error: %s", exc)
+        data = _fallback_questions_for_category(category)
+        use_fallback = True
     if isinstance(data, dict):
         data = [data]
     filtered = []
@@ -280,6 +469,8 @@ def generate_questions_with_prompt(category, prompt):
         filtered.append({key: item.get(key, "").strip() for key in schema["columns"]})
     if not filtered:
         raise RuntimeError("AI did not return usable content.")
+    if use_fallback:
+        _inform_ai_fallback("AI temporarily offline. Added sample questions instead.")
     return filtered
 
 
@@ -289,7 +480,17 @@ def generate_exam_from_prompt(prompt):
         "category (vocabulary/grammar/reading/translation), questions (int between 3 and 10). "
         "No extra text."
     )
-    data = request_ai_json(instructions, prompt or "Create a balanced assessment.")
+    use_fallback = False
+    try:
+        data = request_ai_json(instructions, prompt or "Create a balanced assessment.")
+    except RuntimeError as exc:
+        app.logger.warning("AI exam generation failed: %s", exc)
+        use_fallback = True
+        data = random.choice(FALLBACK_EXAM_TEMPLATES)
+    except Exception as exc:  # pragma: no cover
+        app.logger.warning("Exam AI error: %s", exc)
+        use_fallback = True
+        data = random.choice(FALLBACK_EXAM_TEMPLATES)
     if isinstance(data, list):
         data = data[0]
     category = data.get("category", "vocabulary").lower()
@@ -300,12 +501,19 @@ def generate_exam_from_prompt(prompt):
         questions = int(raw_questions)
     except (TypeError, ValueError):
         questions = 5
-    return {
+    payload = {
         "title": data.get("title", "AI Exam Draft").strip()[:80],
         "description": data.get("description", "").strip()[:200],
         "category": category,
         "questions": max(3, min(questions, 10)),
     }
+    if use_fallback:
+        desc = payload["description"] or "Quick mixed drill."
+        if prompt:
+            desc += f" (Based on: {prompt[:60]})"
+            payload["description"] = desc[:200]
+        _inform_ai_fallback("AI unavailable. Created a built-in exam template.")
+    return payload
 
 
 def analyze_text_with_ai(text, custom_prompt=None):
@@ -320,9 +528,13 @@ def analyze_text_with_ai(text, custom_prompt=None):
     try:
         data = request_ai_json(instructions, user_content)
     except RuntimeError as exc:
-        raise RuntimeError(str(exc)) from exc
+        app.logger.warning("AI analyzer unavailable: %s", exc)
+        _inform_ai_fallback("AI analyzer offline. Showing heuristic feedback instead.")
+        return _local_text_analysis(snippet, custom_prompt)
     except Exception as exc:  # pragma: no cover
-        raise RuntimeError("AI analysis failed") from exc
+        app.logger.warning("AI analysis error: %s", exc)
+        _inform_ai_fallback("AI analyzer offline. Showing heuristic feedback instead.")
+        return _local_text_analysis(snippet, custom_prompt)
     return {
         "summary": data.get("summary", "No summary produced."),
         "vocabulary": data.get("vocabulary", ""),
