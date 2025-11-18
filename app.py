@@ -36,10 +36,10 @@ from docx import Document
 from PyPDF2 import PdfReader
 import openpyxl
 
-load_dotenv()
-
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, "orish.db")
+
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 app = Flask(__name__)
 app.config.update(
@@ -48,7 +48,7 @@ app.config.update(
 )
 
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
+DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 ai_client = None
 
@@ -66,6 +66,7 @@ def get_ai_client():
         except Exception as exc:  # pragma: no cover - defensive
             app.logger.warning("Could not initialize DeepSeek client: %s", exc)
             return None
+        
     return ai_client
 
 
