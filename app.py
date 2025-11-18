@@ -31,7 +31,7 @@ from flask import (
     session,
     url_for,
 )
-import requests
+from openai import OpenAI
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -56,6 +56,7 @@ DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 DEEPSEEK_TIMEOUT = 30
 
 ALLOWED_UPLOADS = {".txt", ".md", ".pdf", ".docx", ".xlsx", ".csv"}
+_ai_client = None
 
 
 def evaluate_text_answer(prompt, reference, student_answer):
@@ -79,7 +80,7 @@ def evaluate_text_answer(prompt, reference, student_answer):
     }
 
     try:
-        response = _perform_deepseek_request(
+        response = _deepseek_chat(
             [
                 {
                     "role": "system",
@@ -98,7 +99,7 @@ def evaluate_text_answer(prompt, reference, student_answer):
             ],
             temperature=0.2,
         )
-        text = _extract_ai_text(response)
+        text = _extract_chat_text(response)
         if not text:
             raise RuntimeError("Empty AI feedback.")
         data = json.loads(_sanitize_ai_text_payload(text))
@@ -123,7 +124,7 @@ def summarize_attempt_for_teacher(exam_title, answers):
         for a in answers
     )
     try:
-        response = _perform_deepseek_request(
+        response = _deepseek_chat(
             [
                 {
                     "role": "system",
@@ -139,7 +140,7 @@ def summarize_attempt_for_teacher(exam_title, answers):
             ],
             temperature=0.3,
         )
-        text = _extract_ai_text(response)
+        text = _extract_chat_text(response)
         return text.strip() if text else None
     except Exception as exc:  # pragma: no cover
         app.logger.warning("DeepSeek summary failed: %s", exc)
@@ -346,83 +347,73 @@ def _inform_ai_fallback(message):
         flash(message, "info")
 
 
-def _deepseek_endpoint(path):
+def _normalized_base_url():
     base = (DEEPSEEK_BASE_URL or "").strip() or "https://api.deepseek.com"
     base = base.rstrip("/")
     if not API_VERSION_RE.search(base):
         base = f"{base}/v1"
-    return f"{base}{path}"
+    return base
 
 
-def _perform_deepseek_request(messages, temperature=0.4):
+def get_ai_client():
+    global _ai_client
     if not DEEPSEEK_API_KEY:
+        return None
+    if _ai_client is None:
+        try:
+            _ai_client = OpenAI(
+                api_key=DEEPSEEK_API_KEY,
+                base_url=_normalized_base_url(),
+            )
+        except Exception as exc:  # pragma: no cover - initialization issues
+            app.logger.warning("Could not initialize DeepSeek client: %s", exc)
+            return None
+    return _ai_client
+
+
+def _deepseek_chat(messages, temperature=0.4):
+    client = get_ai_client()
+    if not client:
         raise RuntimeError("AI key missing")
-    payload = {
-        "model": DEEPSEEK_MODEL,
-        "temperature": temperature,
-        "input": messages,
-    }
     try:
-        response = requests.post(
-            _deepseek_endpoint("/responses"),
-            json=payload,
-            timeout=DEEPSEEK_TIMEOUT,
-            headers={
-                "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-                "Content-Type": "application/json",
-            },
+        return client.chat.completions.create(
+            model=DEEPSEEK_MODEL,
+            messages=messages,
+            temperature=temperature,
         )
-        response.raise_for_status()
-    except requests.HTTPError as exc:  # pragma: no cover - network
-        status = exc.response.status_code if exc.response else "?"
-        detail = ""
-        if exc.response is not None:
-            try:
-                detail = exc.response.json().get("error", {}).get("message", "")
-            except Exception:
-                detail = exc.response.text[:200]
-        message = f"AI request failed ({status}). {detail}".strip()
-        app.logger.warning("DeepSeek request failed: %s", message)
-        raise RuntimeError(message or "AI request failed") from exc
-    except requests.RequestException as exc:  # pragma: no cover - network
-        app.logger.warning("DeepSeek request failed: %s", exc)
-        raise RuntimeError("AI request failed. Please try again soon.") from exc
-    return response.json()
+    except Exception as exc:  # pragma: no cover - network / API issues
+        app.logger.warning("DeepSeek chat request failed: %s", exc)
+        raise RuntimeError("AI request failed") from exc
 
 
-def _extract_ai_text(data):
-    if not data:
+def _extract_chat_text(response):
+    if not response or not getattr(response, "choices", None):
         return ""
-    output = data.get("output")
-    if isinstance(output, list) and output:
-        first = output[0] or {}
-        content = first.get("content") or []
+    first_choice = response.choices[0]
+    message = getattr(first_choice, "message", None)
+    content = getattr(message, "content", "") if message else ""
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
         for chunk in content:
-            if isinstance(chunk, dict):
-                text = chunk.get("text") or chunk.get("content")
-                if text:
-                    return text.strip()
-            elif isinstance(chunk, str) and chunk.strip():
-                return chunk.strip()
-    output_text = data.get("output_text")
-    if isinstance(output_text, list) and output_text:
-        joined = " ".join(str(part) for part in output_text if part)
-        if joined.strip():
-            return joined.strip()
-    if isinstance(output_text, str) and output_text.strip():
-        return output_text.strip()
-    return ""
+            if isinstance(chunk, dict) and chunk.get("type") == "text":
+                parts.append(chunk.get("text", ""))
+            elif isinstance(chunk, str):
+                parts.append(chunk)
+        return " ".join(parts).strip()
+    return str(content).strip()
 
 
 def request_ai_json(system_prompt, user_prompt):
-    response = _perform_deepseek_request(
+    response = _deepseek_chat(
         [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
         temperature=0.4,
     )
-    text = _sanitize_ai_text_payload(_extract_ai_text(response))
+    text = _sanitize_ai_text_payload(_extract_chat_text(response))
     if not text:
         raise RuntimeError("AI response was empty.")
     try:

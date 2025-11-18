@@ -15,7 +15,7 @@ Orish is a Flask-based learning companion for English classrooms. It bundles cur
 ## Tech stack
 
 - **Backend:** Flask 3, SQLite (via `sqlite3`), python-dotenv for config.
-- **AI integration:** Direct HTTPS calls to DeepSeek’s OpenAI-compatible endpoint using `requests`.
+- **AI integration:** OpenAI SDK pointed at DeepSeek’s compatible endpoint (`deepseek-chat`, `deepseek-reasoner`).
 - **Parsing:** PyPDF2, python-docx, openpyxl, csv for document ingestion.
 - **Frontend:** Jinja2 templates, Lucide icons, custom CSS (`static/css/style.css`), lightweight JS for icon rendering and mind-map animation (`static/js/app.js`).
 
@@ -93,7 +93,7 @@ Orish is a Flask-based learning companion for English classrooms. It bundles cur
 orish/
 ├── app.py              # Flask routes, AI helpers, DB access, session management
 ├── init_db.py          # Idempotent seeding script (users, questions, exams)
-├── requirements.txt    # Python dependencies (Flask, requests, docx, etc.)
+├── requirements.txt    # Python dependencies (Flask, OpenAI SDK, docx, etc.)
 ├── templates/          # Jinja2 templates for all pages
 ├── static/
 │   ├── css/style.css   # Shared styling + layout
