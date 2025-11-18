@@ -11,6 +11,7 @@ import csv
 import json
 import os
 import random
+import re
 import sqlite3
 from datetime import datetime
 from functools import wraps
@@ -208,6 +209,17 @@ QUESTION_SCHEMAS = {
     },
 }
 
+JSON_BLOCK_RE = re.compile(r"(\{.*\}|\[.*\])", re.DOTALL)
+
+
+def _sanitize_ai_text_payload(content):
+    """Strip markdown fences or stray whitespace before JSON parsing."""
+    text = (content or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?", "", text, flags=re.IGNORECASE).strip()
+        text = re.sub(r"```$", "", text).strip()
+    return text
+
 
 def request_ai_json(system_prompt, user_prompt):
     client = get_ai_client()
@@ -226,7 +238,19 @@ def request_ai_json(system_prompt, user_prompt):
         content = response.output[0].content[0].text
     elif getattr(response, "output_text", None):
         content = response.output_text[0]
-    return json.loads(content)
+    text = _sanitize_ai_text_payload(content)
+    if not text:
+        raise RuntimeError("AI response was empty.")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        match = JSON_BLOCK_RE.search(text)
+        if match:
+            try:
+                return json.loads(match.group(1))
+            except json.JSONDecodeError:
+                pass
+        raise RuntimeError("AI returned invalid JSON.")
 
 
 def generate_questions_with_prompt(category, prompt):
@@ -271,7 +295,11 @@ def generate_exam_from_prompt(prompt):
     category = data.get("category", "vocabulary").lower()
     if category not in CATEGORIES:
         category = "vocabulary"
-    questions = int(data.get("questions", 5))
+    raw_questions = data.get("questions", 5)
+    try:
+        questions = int(raw_questions)
+    except (TypeError, ValueError):
+        questions = 5
     return {
         "title": data.get("title", "AI Exam Draft").strip()[:80],
         "description": data.get("description", "").strip()[:200],
@@ -531,6 +559,8 @@ def fetch_random_questions(category_key, limit=5):
         f"SELECT * FROM {category['table']} ORDER BY RANDOM() LIMIT ?",
         (limit,),
     ).fetchall()
+    if not rows:
+        raise ValueError("No questions available for this category yet. Please ask your teacher to add some.")
     questions = []
     for row in rows:
         row_keys = row.keys()
@@ -802,7 +832,11 @@ def take_exam(exam_id):
 
     exam_state = session.get("exam")
     if not exam_state or exam_state.get("exam_id") != exam_id:
-        start_exam_session(exam)
+        try:
+            start_exam_session(exam)
+        except ValueError as exc:
+            flash(str(exc), "warning")
+            return redirect(url_for("exams"))
         exam_state = session["exam"]
 
     if request.method == "POST":
@@ -985,7 +1019,11 @@ def quiz(category):
 
     quiz_state = session.get("quiz")
     if not quiz_state or quiz_state.get("category") != category:
-        start_quiz_session(category)
+        try:
+            start_quiz_session(category)
+        except ValueError as exc:
+            flash(str(exc), "warning")
+            return redirect(url_for("quiz_select"))
         quiz_state = session["quiz"]
 
     if request.method == "POST":
