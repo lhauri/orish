@@ -897,14 +897,58 @@ select,
 .option {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    padding: 0.9rem 1rem;
-    border-radius: 16px;
+    gap: 0.75rem;
+    padding: 1rem 1.1rem;
+    border-radius: 18px;
     border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.9);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    cursor: pointer;
+}
+
+.option:hover {
+    border-color: rgba(124, 58, 237, 0.3);
+    box-shadow: 0 10px 25px rgba(124, 58, 237, 0.08);
 }
 
 .option input {
-    accent-color: var(--primary);
+    appearance: none;
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 50%;
+    border: 2px solid rgba(15, 23, 42, 0.25);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.option input::after {
+    content: "";
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: transparent;
+    transition: background 0.2s ease;
+}
+
+.option input:checked {
+    border-color: var(--primary);
+    background: rgba(124, 58, 237, 0.1);
+}
+
+.option input:checked::after {
+    background: var(--primary);
+}
+
+.option input:focus-visible {
+    outline: 2px solid rgba(124, 58, 237, 0.5);
+    outline-offset: 4px;
+}
+
+.option span {
+    flex: 1;
 }
 
 .progress {
