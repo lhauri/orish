@@ -1440,6 +1440,8 @@ def admin_users():
                 if is_ajax:
                     return ajax_response(message, extra={"role": "teacher"})
                 flash(message, "success")
+            if is_ajax:
+                return ajax_response(message, extra={"role": "teacher"})
             return redirect(url_for("admin_users"))
         if action == "demote":
             if target_id == g.user["id"]:
@@ -1880,14 +1882,19 @@ def update_exam_settings(exam_id):
     study_enabled = 1 if request.form.get("study_enabled") else 0
     test_enabled = 1 if request.form.get("test_enabled") else 0
     is_active = 1 if request.form.get("is_active") else 0
+    title = request.form.get("title", exam["title"]).strip()
+    description = request.form.get("description", exam.get("description", "")).strip()
+    if not title:
+        flash("Title is required.", "warning")
+        return redirect(url_for("manage_exam", exam_id=exam_id))
     db = get_db()
     db.execute(
         """
         UPDATE exams
-        SET questions = ?, study_enabled = ?, test_enabled = ?, is_active = ?
+        SET title = ?, description = ?, questions = ?, study_enabled = ?, test_enabled = ?, is_active = ?
         WHERE id = ?
         """,
-        (questions, study_enabled, test_enabled, is_active, exam_id),
+        (title, description, questions, study_enabled, test_enabled, is_active, exam_id),
     )
     db.commit()
     flash("Exam settings updated.", "success")
@@ -2101,6 +2108,23 @@ def delete_exam_assignment(exam_id, assignment_id):
     db.commit()
     flash("Removed assignment.", "info")
     return redirect(url_for("manage_exam", exam_id=exam_id))
+
+
+@app.route("/exams/<int:exam_id>/delete", methods=["POST"])
+@admin_required
+def delete_exam(exam_id):
+    exam = load_exam(exam_id)
+    if not exam:
+        flash("Exam not found.", "warning")
+        return redirect(url_for("exams"))
+    db = get_db()
+    db.execute("DELETE FROM exam_questions WHERE exam_id = ?", (exam_id,))
+    db.execute("DELETE FROM exam_assignments WHERE exam_id = ?", (exam_id,))
+    db.execute("DELETE FROM exam_attempts WHERE exam_id = ?", (exam_id,))
+    db.execute("DELETE FROM exams WHERE id = ?", (exam_id,))
+    db.commit()
+    flash(f"Deleted exam '{exam['title']}'.", "info")
+    return redirect(url_for("exams"))
 
 
 @app.route("/exams/<int:exam_id>/take", methods=["GET", "POST"])

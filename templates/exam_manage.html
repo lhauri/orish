@@ -8,7 +8,12 @@
             <h2>{{ exam.title }}</h2>
             <p class="muted">{{ exam.description or 'No description yet.' }}</p>
         </div>
-        <a class="btn ghost" href="{{ url_for('exams') }}">Back to exams</a>
+        <div class="admin-actions">
+            <form method="post" action="{{ url_for('delete_exam', exam_id=exam.id) }}" onsubmit="return confirm('Delete this exam and all related attempts?')">
+                <button class="btn danger ghost" type="submit">Delete exam</button>
+            </form>
+            <a class="btn ghost" href="{{ url_for('exams') }}">Back to exams</a>
+        </div>
     </div>
     <div class="exam-manage-meta">
         <div class="metric-card">
@@ -25,6 +30,12 @@
         </div>
     </div>
     <form class="exam-settings-grid" method="post" action="{{ url_for('update_exam_settings', exam_id=exam.id) }}">
+        <label>Exam title
+            <input type="text" name="title" value="{{ exam.title }}" required>
+        </label>
+        <label>Description
+            <textarea name="description" rows="2" placeholder="Optional short description">{{ exam.description }}</textarea>
+        </label>
         <label>Question count
             <input type="number" name="questions" min="3" max="30" value="{{ exam.questions }}">
         </label>
