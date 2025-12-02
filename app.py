@@ -67,6 +67,13 @@ MAX_SHEET_ROWS = 200
 MAX_DOCX_PARAGRAPHS = 400
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
 
+THEMES = {
+    "default": "Aurora",
+    "dark": "Midnight",
+    "pink": "Rose",
+    "cyan": "Lagoon",
+}
+
 
 def generate_csrf_token():
     token = session.get("_csrf_token")
@@ -1005,6 +1012,7 @@ def init_tables():
     _ensure_column(db, "exams", "test_enabled", "INTEGER DEFAULT 1")
     _ensure_column(db, "exams", "ai_prompt", "TEXT")
     _ensure_column(db, "exam_attempts", "mode", "TEXT DEFAULT 'test'")
+    _ensure_column(db, "users", "theme", "TEXT DEFAULT 'default'")
     db.commit()
 
 
@@ -1105,10 +1113,16 @@ def enforce_csrf_protection():
 
 @app.context_processor
 def inject_globals():
+    theme = "default"
+    if hasattr(g, "user") and g.user:
+        user_theme = g.user.get("theme")
+        if user_theme in THEMES:
+            theme = user_theme
     return {
         "current_year": datetime.utcnow().year,
         "csrf_token": generate_csrf_token,
         "csrf_field": csrf_field,
+        "current_theme": theme,
     }
 
 
@@ -1638,6 +1652,21 @@ def profile():
                     )
                     flash("Username updated.", "success")
             return redirect(url_for("profile"))
+        elif action == "theme":
+            new_theme = request.form.get("theme_choice", "default")
+            if new_theme not in THEMES:
+                flash("Unknown theme selection.", "warning")
+                return redirect(url_for("profile"))
+            db.execute(
+                "UPDATE users SET theme = ? WHERE id = ?",
+                (new_theme, g.user["id"]),
+            )
+            db.commit()
+            g.user = (
+                db.execute("SELECT * FROM users WHERE id = ?", (g.user["id"],)).fetchone()
+            )
+            flash("Theme updated.", "success")
+            return redirect(url_for("profile"))
         else:
             current_password = request.form.get("current_password", "")
             new_password = request.form.get("new_password", "")
@@ -1743,6 +1772,7 @@ def profile():
         profile_stats=profile_stats,
         category_stats=category_stats,
         role_label=role_label,
+        theme_options=THEMES,
     )
 
 

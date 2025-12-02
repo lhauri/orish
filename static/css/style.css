@@ -9,6 +9,9 @@
     --primary-dark: #5b21b6;
     --accent: #0ea5e9;
     --border: rgba(15, 23, 42, 0.08);
+    --topbar-bg: rgba(255, 255, 255, 0.92);
+    --veil-one: rgba(124, 58, 237, 0.18);
+    --veil-two: rgba(14, 165, 233, 0.18);
     --shadow-lg: 0 30px 70px rgba(88, 63, 232, 0.15);
     --shadow-sm: 0 10px 30px rgba(15, 23, 42, 0.08);
     font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -45,7 +48,7 @@ textarea:focus {
 body {
     margin: 0;
     min-height: 100vh;
-    background: linear-gradient(135deg, var(--bg), #fdf2ff);
+    background: linear-gradient(135deg, var(--bg), var(--bg-strong));
     color: var(--text);
 }
 
@@ -57,8 +60,8 @@ body.layout {
 .surface-veil {
     position: fixed;
     inset: 0;
-    background: radial-gradient(circle at 20% 20%, rgba(124, 58, 237, 0.18), transparent 45%),
-        radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.18), transparent 35%);
+    background: radial-gradient(circle at 20% 20%, var(--veil-one), transparent 45%),
+        radial-gradient(circle at 80% 0%, var(--veil-two), transparent 35%);
     z-index: -1;
     pointer-events: none;
 }
@@ -86,9 +89,9 @@ a {
     justify-content: space-between;
     gap: 1rem;
     padding: 1.1rem clamp(1.25rem, 3vw, 2.5rem);
-    background: rgba(255, 255, 255, 0.92);
+    background: var(--topbar-bg);
     backdrop-filter: blur(18px);
-    border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+    border-bottom: 1px solid var(--border);
 }
 
 .brand {
@@ -777,7 +780,8 @@ a {
 .admin-list li,
 .category-card,
 .focus-card {
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--surface);
+    border: 1px solid var(--border);
 }
 
 .card-grid,
@@ -1410,6 +1414,59 @@ select,
 .exam-button.disabled {
     opacity: 0.45;
     pointer-events: none;
+}
+
+body.theme-dark {
+    --bg: #0b1120;
+    --bg-strong: #111827;
+    --surface: #111827;
+    --surface-muted: #1f2937;
+    --text: #f8fafc;
+    --muted: #cbd5f5;
+    --primary: #c084fc;
+    --primary-dark: #a855f7;
+    --accent: #22d3ee;
+    --border: rgba(248, 250, 252, 0.1);
+    --topbar-bg: rgba(15, 23, 42, 0.92);
+    --veil-one: rgba(124, 58, 237, 0.35);
+    --veil-two: rgba(14, 165, 233, 0.35);
+}
+
+body.theme-dark .flash {
+    background: rgba(30, 41, 59, 0.8);
+    color: #e2e8f0;
+}
+
+body.theme-pink {
+    --bg: #fff1f5;
+    --bg-strong: #ffe4e6;
+    --surface: #fff7fb;
+    --surface-muted: #ffe4f1;
+    --text: #4a044e;
+    --muted: #9d174d;
+    --primary: #ec4899;
+    --primary-dark: #be185d;
+    --accent: #f472b6;
+    --border: rgba(190, 24, 93, 0.15);
+    --topbar-bg: rgba(255, 247, 250, 0.95);
+    --veil-one: rgba(236, 72, 153, 0.25);
+    --veil-two: rgba(251, 113, 133, 0.25);
+}
+
+body.theme-cyan {
+    --bg: #e0f7ff;
+    --bg-strong: #b9f3ff;
+    --surface: #f0fbff;
+    --surface-muted: #d7f0ff;
+    --text: #042f2e;
+    --muted: #0f766e;
+    --primary: #0ea5e9;
+    --primary-dark: #0c4a6e;
+    --accent: #22d3ee;
+    --border: rgba(14, 165, 233, 0.2);
+    --topbar-bg: rgba(240, 251, 255, 0.95);
+    --veil-one: rgba(14, 165, 233, 0.25);
+    --veil-two: rgba(45, 212, 191, 0.25);
 }
 
 .exam-card small {

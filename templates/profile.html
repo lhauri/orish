@@ -83,6 +83,25 @@
             </div>
         </form>
     </article>
+    <article class="card profile-form">
+        <h3>Theme & appearance</h3>
+        <p class="muted">Pick a colorway that matches your mood. Changes apply instantly.</p>
+        <form method="post" class="form-grid">
+            {{ csrf_field() }}
+            <input type="hidden" name="profile_action" value="theme">
+            <label>
+                <span>Theme</span>
+                <select name="theme_choice">
+                    {% for key, label in theme_options.items() %}
+                    <option value="{{ key }}" {% if g.user['theme'] == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <div class="form-actions">
+                <button class="btn primary" type="submit">Apply theme</button>
+            </div>
+        </form>
+    </article>
     <article class="card profile-feed">
         <h3>Recent quiz results</h3>
         <ul class="result-list compact">
