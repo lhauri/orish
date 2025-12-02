@@ -42,70 +42,56 @@
         {% set study_allowed = exam.study_enabled and exam.can_study and exam.has_questions %}
         {% set test_allowed = exam.test_enabled and exam.can_test and exam.has_questions %}
         <article class="exam-card">
-            <div class="exam-card-main">
-                <div class="exam-header-row">
-                    <span class="tag">{{ exam.category_label }}</span>
-                    <div class="mode-pills">
-                        {% if exam.study_enabled %}<span class="pill">Study</span>{% endif %}
-                        {% if exam.test_enabled %}<span class="pill secondary">Test</span>{% endif %}
+            <div class="exam-card-top">
+                <div class="exam-card-tags">
+                    <span class="exam-category">{{ exam.category_label }}</span>
+                    <div class="exam-modes">
+                        {% if exam.study_enabled %}<span class="exam-pill">Study</span>{% endif %}
+                        {% if exam.test_enabled %}<span class="exam-pill secondary">Test</span>{% endif %}
                     </div>
                 </div>
-                <div class="exam-headline">
-                    <h3>{{ exam.title }}</h3>
-                    <p>{{ exam.description or 'Focused practice with auto-tracking.' }}</p>
-                </div>
-                <dl class="exam-meta-grid">
-                    <div>
-                        <dt>Question goal</dt>
-                        <dd>{{ exam.questions }}</dd>
-                    </div>
-                    <div>
-                        <dt>Custom</dt>
-                        <dd>{{ exam.specific_questions }}</dd>
-                    </div>
-                    <div>
-                        <dt>Bank</dt>
-                        <dd>{{ exam.general_questions }}</dd>
-                    </div>
+                <h3>{{ exam.title }}</h3>
+                <p class="exam-description">{{ exam.description or 'Focused practice with auto-tracking.' }}</p>
+                <ul class="exam-stats">
+                    <li><span>Goal</span><strong>{{ exam.questions }}</strong></li>
+                    <li><span>Custom</span><strong>{{ exam.specific_questions }}</strong></li>
+                    <li><span>Bank</span><strong>{{ exam.general_questions }}</strong></li>
                     {% if g.user['is_admin'] %}
-                    <div>
-                        <dt>Assigned</dt>
-                        <dd>{{ exam.assigned_count }}</dd>
-                    </div>
+                    <li><span>Assigned</span><strong>{{ exam.assigned_count }}</strong></li>
                     {% endif %}
-                </dl>
+                </ul>
                 {% if exam.has_questions %}
-                <p class="status-note ready">Ready for students</p>
+                <p class="exam-status ready">Ready for students</p>
                 {% else %}
-                <div class="status-note warning">
+                <div class="exam-status warning">
                     <p>Needs {{ exam.missing_questions }} more question{{ 's' if exam.missing_questions != 1 else '' }} before opening.</p>
                     {% if g.user['is_admin'] %}
-                    <a class="btn ghost restock-btn" href="{{ url_for('admin_questions', category=exam.category) }}">Restock bank</a>
+                    <a class="restock-link" href="{{ url_for('admin_questions', category=exam.category) }}">Restock bank</a>
                     {% endif %}
                 </div>
                 {% endif %}
             </div>
-            <div class="exam-card-actions {% if g.user['is_admin'] %}with-admin{% endif %}">
+            <div class="exam-card-actions">
                 <a class="exam-button study {% if not study_allowed %}disabled{% endif %}"
                     {% if study_allowed %}href="{{ url_for('take_exam', exam_id=exam.id, mode='study') }}"
                     {% else %}aria-disabled="true"{% endif %}>
                     <span class="label">Study mode</span>
-                    <small>Practice privately</small>
+                    <small>Private practice</small>
                 </a>
                 <a class="exam-button test {% if not test_allowed %}disabled{% endif %}"
                     {% if test_allowed %}href="{{ url_for('take_exam', exam_id=exam.id, mode='test') }}"
                     {% else %}aria-disabled="true"{% endif %}>
                     <span class="label">Test mode</span>
-                    <small>Report to teacher</small>
+                    <small>Teacher notified</small>
                 </a>
                 {% if g.user['is_admin'] %}
                 <a class="exam-button manage" href="{{ url_for('manage_exam', exam_id=exam.id) }}">
                     <span class="label">Manage exam</span>
-                    <small>Questions & sharing</small>
+                    <small>Adjust questions</small>
                 </a>
                 <a class="exam-button bank" href="{{ url_for('admin_questions', category=exam.category) }}">
                     <span class="label">Question bank</span>
-                    <small>Add or curate items</small>
+                    <small>Restock content</small>
                 </a>
                 {% endif %}
             </div>
