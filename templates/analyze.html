@@ -6,6 +6,7 @@
     <h2>Upload classroom material</h2>
     <p class="muted">Accepts PDF, DOCX, TXT, CSV, XLSX (first 10 pages/rows). AI highlights summary, vocab, grammar, and action points.</p>
     <form class="form-grid" method="post" enctype="multipart/form-data">
+        {{ csrf_field() }}
         <label>File<input type="file" name="document" accept=".pdf,.docx,.txt,.md,.csv,.xlsx" required></label>
         <label>Focus prompt<textarea name="prompt" rows="2" placeholder="e.g. Emphasize vocabulary gaps.">{{ custom_prompt }}</textarea></label>
         <button class="btn primary">Analyze</button>

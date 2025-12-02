@@ -10,6 +10,7 @@
         </div>
         <div class="admin-actions">
             <form method="post" action="{{ url_for('delete_exam', exam_id=exam.id) }}" onsubmit="return confirm('Delete this exam and all related attempts?')">
+                {{ csrf_field() }}
                 <button class="btn danger ghost" type="submit">Delete exam</button>
             </form>
             <a class="btn ghost" href="{{ url_for('exams') }}">Back to exams</a>
@@ -30,6 +31,7 @@
         </div>
     </div>
     <form class="exam-settings-grid" method="post" action="{{ url_for('update_exam_settings', exam_id=exam.id) }}">
+        {{ csrf_field() }}
         <label>Exam title
             <input type="text" name="title" value="{{ exam.title }}" required>
         </label>
@@ -77,6 +79,7 @@
                 </div>
                 <div class="admin-actions">
                     <form method="post" action="{{ url_for('delete_exam_question', exam_id=exam.id, question_id=question.id) }}" onsubmit="return confirm('Remove this question?')">
+                        {{ csrf_field() }}
                         <button class="btn danger">Delete</button>
                     </form>
                 </div>
@@ -89,6 +92,7 @@
     </div>
     <div class="exam-question-forms">
         <form method="post" action="{{ url_for('add_exam_question', exam_id=exam.id) }}" class="exam-form-panel">
+            {{ csrf_field() }}
             <h4>Add manual question</h4>
             <label>Prompt<textarea name="prompt" rows="3" required></textarea></label>
             <label>Answer type
@@ -105,6 +109,7 @@
             <button class="btn primary">Add question</button>
         </form>
         <form method="post" action="{{ url_for('add_exam_questions_ai', exam_id=exam.id) }}" class="exam-form-panel">
+            {{ csrf_field() }}
             <h4>Use AI helper</h4>
             <label>Prompt<textarea name="prompt" rows="4" placeholder="e.g. Focus on reported speech transformations." ></textarea></label>
             <button class="btn secondary">Generate {{ categories[exam.category].label }} questions</button>
@@ -120,6 +125,7 @@
         </div>
     </div>
     <form class="exam-share-form form-grid" method="post" action="{{ url_for('assign_exam_to_student', exam_id=exam.id) }}">
+        {{ csrf_field() }}
         <label>Student username or email<input name="identifier" required></label>
         <label class="toggle">
             <input type="checkbox" name="can_study" checked>
@@ -149,6 +155,7 @@
                     <td>{{ 'Yes' if assignment.can_test else 'No' }}</td>
                     <td>
                         <form method="post" action="{{ url_for('delete_exam_assignment', exam_id=exam.id, assignment_id=assignment.id) }}" onsubmit="return confirm('Remove this student?')">
+                            {{ csrf_field() }}
                             <button class="btn danger">Remove</button>
                         </form>
                     </td>

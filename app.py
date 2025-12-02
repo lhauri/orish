@@ -8,10 +8,12 @@ How to run locally:
 """
 
 import csv
+import hmac
 import json
 import os
 import random
 import re
+import secrets
 import sqlite3
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -34,6 +36,7 @@ from flask import (
     session,
     url_for,
 )
+from markupsafe import Markup
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -59,6 +62,34 @@ DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 DEEPSEEK_TIMEOUT = 30
 
 ALLOWED_UPLOADS = {".txt", ".md", ".pdf", ".docx", ".xlsx", ".csv"}
+MAX_UPLOAD_BYTES = 2 * 1024 * 1024  # 2 MB cap to keep parsing responsive
+MAX_SHEET_ROWS = 200
+MAX_DOCX_PARAGRAPHS = 400
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
+
+
+def generate_csrf_token():
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+    return token
+
+
+def csrf_field():
+    return Markup(
+        f'<input type="hidden" name="csrf_token" value="{generate_csrf_token()}">'  # nosec: template helper
+    )
+
+
+def _submitted_csrf_token():
+    token = request.form.get("csrf_token") if request.form else None
+    if not token and request.is_json:
+        payload = request.get_json(silent=True) or {}
+        token = payload.get("csrf_token")
+    if not token:
+        token = request.headers.get("X-CSRFToken") or request.headers.get("X-CSRF-Token")
+    return token
 
 
 def _normalize_answer(text):
@@ -667,9 +698,13 @@ def generate_exam_from_prompt(prompt):
         "category": category,
         "questions": max(3, min(questions, 10)),
     }
-    items = data.get("items") or data.get("questions") or []
+    raw_items = data.get("items")
+    if isinstance(raw_items, dict):
+        raw_items = [raw_items]
+    elif not isinstance(raw_items, list):
+        raw_items = []
     normalized = []
-    for item in items:
+    for item in raw_items:
         if not isinstance(item, dict):
             continue
         prompt_text = item.get("prompt", "").strip()
@@ -739,6 +774,8 @@ def extract_text_from_upload(file_storage):
     data = file_storage.read()
     if not data:
         raise ValueError("File appears to be empty.")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise ValueError("File is too large. Please upload a document under 2 MB.")
     stream = BytesIO(data)
     if ext in {".txt", ".md"}:
         return data.decode("utf-8", errors="ignore")
@@ -750,12 +787,21 @@ def extract_text_from_upload(file_storage):
         return "\n".join(parts)
     if ext == ".docx":
         doc = Document(stream)
-        return "\n".join(p.text for p in doc.paragraphs)
+        paragraphs = []
+        for paragraph in doc.paragraphs:
+            if len(paragraphs) >= MAX_DOCX_PARAGRAPHS:
+                break
+            text = paragraph.text.strip()
+            if text:
+                paragraphs.append(text)
+        return "\n".join(paragraphs)
     if ext == ".xlsx":
-        wb = openpyxl.load_workbook(stream, data_only=True)
+        wb = openpyxl.load_workbook(stream, data_only=True, read_only=True)
         sheet = wb.active
         rows = []
-        for row in sheet.iter_rows(values_only=True):
+        for idx, row in enumerate(sheet.iter_rows(values_only=True)):
+            if idx >= MAX_SHEET_ROWS:
+                break
             cells = [str(cell) for cell in row if cell is not None]
             if cells:
                 rows.append(" ".join(cells))
@@ -764,7 +810,14 @@ def extract_text_from_upload(file_storage):
         stream.seek(0)
         text = data.decode("utf-8", errors="ignore")
         reader = csv.reader(text.splitlines())
-        return "\n".join(" ".join(row) for row in reader)
+        lines = []
+        for idx, row in enumerate(reader):
+            if idx >= MAX_SHEET_ROWS:
+                break
+            cleaned = " ".join(cell for cell in row if cell)
+            if cleaned:
+                lines.append(cleaned)
+        return "\n".join(lines)
     raise ValueError("Unsupported file type.")
 
 CATEGORIES = {
@@ -798,6 +851,7 @@ def get_db():
     if "db" not in g:
         g.db = sqlite3.connect(app.config["DATABASE"])
         g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA foreign_keys = ON")
     return g.db
 
 
@@ -999,25 +1053,6 @@ def format_question_row(category_key, row):
     return question
 
 
-def fetch_questions_by_ids(category_key, question_ids):
-    if not question_ids:
-        return []
-    db = get_db()
-    table = CATEGORIES[category_key]["table"]
-    placeholders = ",".join(["?"] * len(question_ids))
-    rows = db.execute(
-        f"SELECT * FROM {table} WHERE id IN ({placeholders})",
-        question_ids,
-    ).fetchall()
-    mapped = {row["id"]: row for row in rows}
-    ordered = []
-    for question_id in question_ids:
-        row = mapped.get(question_id)
-        if row:
-            ordered.append(format_question_row(category_key, row))
-    return ordered
-
-
 def login_required(view):
     @wraps(view)
     def wrapped_view(**kwargs):
@@ -1054,21 +1089,27 @@ def load_logged_in_user():
         g.user = user
 
 
+@app.before_request
+def enforce_csrf_protection():
+    if app.config.get("TESTING"):
+        return
+    if request.method in SAFE_METHODS:
+        return
+    if request.blueprint == "static":
+        return
+    expected = session.get("_csrf_token")
+    submitted = _submitted_csrf_token()
+    if not expected or not submitted or not hmac.compare_digest(expected, submitted):
+        abort(400, description="Invalid CSRF token.")
+
+
 @app.context_processor
 def inject_globals():
-    return {"current_year": datetime.utcnow().year}
-
-
-def fetch_random_questions(category_key, limit=5):
-    category = CATEGORIES[category_key]
-    db = get_db()
-    rows = db.execute(
-        f"SELECT * FROM {category['table']} ORDER BY RANDOM() LIMIT ?",
-        (limit,),
-    ).fetchall()
-    if not rows:
-        raise ValueError("No questions available for this category yet. Please ask your teacher to add some.")
-    return [format_question_row(category_key, row) for row in rows]
+    return {
+        "current_year": datetime.utcnow().year,
+        "csrf_token": generate_csrf_token,
+        "csrf_field": csrf_field,
+    }
 
 
 def fetch_exam_specific_question_rows(exam_id):
@@ -1110,27 +1151,91 @@ def format_exam_specific_question(row):
     return question
 
 
-def build_exam_question_set(exam_row):
+def question_ref_from_bank(category_key, question_id):
+    return {"source": "bank", "category": category_key, "id": int(question_id)}
+
+
+def question_ref_from_exam(question_id):
+    return {"source": "exam", "id": int(question_id)}
+
+
+def fetch_random_question_refs(category_key, limit=5):
+    category = CATEGORIES[category_key]
+    rows = (
+        get_db()
+        .execute(
+            f"SELECT id FROM {category['table']} ORDER BY RANDOM() LIMIT ?",
+            (limit,),
+        )
+        .fetchall()
+    )
+    if not rows:
+        raise ValueError(
+            "No questions available for this category yet. Please ask your teacher to add some."
+        )
+    return [question_ref_from_bank(category_key, row["id"]) for row in rows]
+
+
+def build_exam_question_refs(exam_row):
     specific_rows = fetch_exam_specific_question_rows(exam_row["id"])
-    specific_questions = [format_exam_specific_question(row) for row in specific_rows]
-    needed = max(0, exam_row["questions"] - len(specific_questions))
+    refs = [question_ref_from_exam(row["id"]) for row in specific_rows]
+    needed = max(0, exam_row["questions"] - len(refs))
     if needed:
         try:
-            general_questions = fetch_random_questions(exam_row["category"], limit=needed)
+            general_refs = fetch_random_question_refs(exam_row["category"], limit=needed)
         except ValueError as exc:
-            if specific_questions:
+            if refs:
                 raise ValueError(
-                    f"This exam only has {len(specific_questions)} custom question(s). "
+                    f"This exam only has {len(refs)} custom question(s). "
                     "Add more exam-specific questions or restock the bank to continue."
                 ) from exc
             raise
-        specific_questions.extend(general_questions)
-    if len(specific_questions) < exam_row["questions"]:
+        if len(general_refs) < needed:
+            if refs:
+                raise ValueError(
+                    f"This exam only has {len(refs)} custom question(s). "
+                    "Add more exam-specific questions or restock the bank to continue."
+                )
+            raise ValueError(
+                "Not enough general questions are available to finish this exam. "
+                "Please add more to the bank or lower the total."
+            )
+        refs.extend(general_refs)
+    if len(refs) < exam_row["questions"]:
         raise ValueError(
-            f"This exam needs {exam_row['questions']} questions but only {len(specific_questions)} "
+            f"This exam needs {exam_row['questions']} questions but only {len(refs)} "
             "are available. Please add more exam-specific questions or replenish the question bank."
         )
-    return specific_questions
+    return refs[: exam_row["questions"]]
+
+
+def load_question_for_ref(reference):
+    source = reference.get("source")
+    if source == "exam":
+        row = (
+            get_db()
+            .execute("SELECT * FROM exam_questions WHERE id = ?", (reference.get("id"),))
+            .fetchone()
+        )
+        if not row:
+            raise ValueError("An exam question was removed. Please restart the exam.")
+        return format_exam_specific_question(row)
+    if source == "bank":
+        category = reference.get("category")
+        if category not in CATEGORIES:
+            raise ValueError("Unknown question category. Please start a new session.")
+        table = CATEGORIES[category]["table"]
+        row = (
+            get_db()
+            .execute(f"SELECT * FROM {table} WHERE id = ?", (reference.get("id"),))
+            .fetchone()
+        )
+        if not row:
+            raise ValueError(
+                "One of the question bank entries is missing. Ask your teacher to refresh it and retry."
+            )
+        return format_question_row(category, row)
+    raise ValueError("Unsupported question reference.")
 
 
 def count_general_questions():
@@ -1192,7 +1297,7 @@ def load_question_group(group_id):
     )
 
 
-def fetch_group_questions(group_id):
+def fetch_group_question_refs(group_id):
     db = get_db()
     memberships = db.execute(
         """
@@ -1205,16 +1310,13 @@ def fetch_group_questions(group_id):
     ).fetchall()
     if not memberships:
         return []
-    grouped = {}
+    refs = []
     for row in memberships:
         category = row["category"]
         if category not in CATEGORIES:
             continue
-        grouped.setdefault(category, []).append(row["question_id"])
-    questions = []
-    for category_key, ids in grouped.items():
-        questions.extend(fetch_questions_by_ids(category_key, ids))
-    return questions
+        refs.append(question_ref_from_bank(category, row["question_id"]))
+    return refs
 
 
 def user_can_view_group(group_row, user):
@@ -2159,10 +2261,15 @@ def take_exam(exam_id):
             return redirect(url_for("exams"))
         exam_state = session["exam"]
 
+    current_index = exam_state["current"]
+    try:
+        question = load_question_for_ref(exam_state["questions"][current_index])
+    except ValueError as exc:
+        flash(str(exc), "warning")
+        session.pop("exam", None)
+        return redirect(url_for("exams"))
+
     if request.method == "POST":
-        exam_state = session.get("exam")
-        current_index = exam_state["current"]
-        question = exam_state["questions"][current_index]
         if question["answer_type"] == "text":
             selected = request.form.get("text_answer", "").strip()
             is_correct = False
@@ -2222,14 +2329,15 @@ def take_exam(exam_id):
             attempt_id = cursor.lastrowid
             session.pop("exam", None)
             return redirect(url_for("exam_result", attempt_id=attempt_id))
+        return redirect(url_for("take_exam", exam_id=exam_id, mode=mode))
 
     return render_template(
         "exam_take.html",
         exam=exam,
         mode=mode,
         exam_state=exam_state,
-        question=exam_state["questions"][exam_state["current"]],
-        current=exam_state["current"] + 1,
+        question=question,
+        current=current_index + 1,
         total=exam_state["total"],
         categories=CATEGORIES,
     )
@@ -2308,47 +2416,47 @@ def admin_exam_attempt_detail(attempt_id):
 
 
 def start_quiz_session(category_key):
-    questions = fetch_random_questions(category_key, limit=5)
+    question_refs = fetch_random_question_refs(category_key, limit=5)
     session["quiz"] = {
         "category": category_key,
-        "questions": questions,
+        "questions": question_refs,
         "current": 0,
         "score": 0,
         "answers": [],
-        "total": len(questions),
+        "total": len(question_refs),
     }
 
 
 def start_group_session(group_row):
-    questions = fetch_group_questions(group_row["id"])
-    if not questions:
+    question_refs = fetch_group_question_refs(group_row["id"])
+    if not question_refs:
         raise ValueError("This study pack has no questions yet.")
     session["group_quiz"] = {
         "group_id": group_row["id"],
         "group_name": group_row["name"],
         "group_subject": group_row["subject"],
-        "questions": questions,
+        "questions": question_refs,
         "current": 0,
         "score": 0,
         "answers": [],
-        "total": len(questions),
+        "total": len(question_refs),
     }
 
 
 def start_exam_session(exam_row, mode):
     try:
-        questions = build_exam_question_set(exam_row)
+        question_refs = build_exam_question_refs(exam_row)
     except ValueError as exc:
         raise ValueError(str(exc))
     session["exam"] = {
         "exam_id": exam_row["id"],
         "title": exam_row["title"],
         "category": exam_row["category"],
-        "questions": questions,
+        "questions": question_refs,
         "current": 0,
         "score": 0,
         "answers": [],
-        "total": len(questions),
+        "total": len(question_refs),
         "mode": mode,
     }
 
@@ -2369,10 +2477,15 @@ def quiz(category):
             return redirect(url_for("quiz_select"))
         quiz_state = session["quiz"]
 
+    current_index = quiz_state["current"]
+    try:
+        question = load_question_for_ref(quiz_state["questions"][current_index])
+    except ValueError as exc:
+        flash(str(exc), "warning")
+        session.pop("quiz", None)
+        return redirect(url_for("quiz_select"))
+
     if request.method == "POST":
-        quiz_state = session.get("quiz")
-        current_index = quiz_state["current"]
-        question = quiz_state["questions"][current_index]
         if question["answer_type"] == "text":
             selected = request.form.get("text_answer", "").strip()
             is_correct = False
@@ -2420,10 +2533,7 @@ def quiz(category):
             session["quiz_result"] = quiz_state
             session.pop("quiz", None)
             return redirect(url_for("results"))
-
-    quiz_state = session.get("quiz")
-    current_index = quiz_state["current"]
-    question = quiz_state["questions"][current_index]
+        return redirect(url_for("quiz", category=category))
 
     return render_template(
         "quiz.html",
@@ -2484,9 +2594,14 @@ def study_group(group_id):
             flash(str(exc), "warning")
             return redirect(url_for("study_packs"))
         pack_state = session["group_quiz"]
+    current_index = pack_state["current"]
+    try:
+        question = load_question_for_ref(pack_state["questions"][current_index])
+    except ValueError as exc:
+        flash(str(exc), "warning")
+        session.pop("group_quiz", None)
+        return redirect(url_for("study_packs"))
     if request.method == "POST":
-        current_index = pack_state["current"]
-        question = pack_state["questions"][current_index]
         if question["answer_type"] == "text":
             selected = request.form.get("text_answer", "").strip()
             is_correct = False
@@ -2537,8 +2652,7 @@ def study_group(group_id):
             session["quiz_result"] = result_payload
             session.pop("group_quiz", None)
             return redirect(url_for("results"))
-    current_index = pack_state["current"]
-    question = pack_state["questions"][current_index]
+        return redirect(url_for("study_group", group_id=group_id))
     return render_template(
         "quiz.html",
         category=group["subject"],
@@ -2950,4 +3064,6 @@ def server_error(error):  # pragma: no cover - best effort
 if __name__ == "__main__":
     with app.app_context():
         init_tables()
-    app.run(debug=True)
+    debug_env = os.environ.get("FLASK_DEBUG") or os.environ.get("DEBUG")
+    debug_mode = str(debug_env).lower() in {"1", "true", "yes", "on"}
+    app.run(debug=debug_mode)

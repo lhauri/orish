@@ -17,6 +17,7 @@
         </div>
     </div>
     <form method="post" class="quiz-form" data-enter-submit="true" data-final-submit="{{ 'true' if current == total else 'false' }}">
+        {{ csrf_field() }}
         <input type="hidden" name="mode" value="{{ mode }}">
         <p class="prompt">{{ question.prompt }}</p>
         {% if question.answer_type == 'text' %}

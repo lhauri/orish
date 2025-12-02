@@ -4,6 +4,7 @@
 <div class="card form-card">
     <h2>Edit {{ categories[category].label }} question</h2>
     <form method="post" class="form-grid">
+        {{ csrf_field() }}
         {% if category == 'vocabulary' %}
         <label>Word<input name="word" value="{{ question['word'] }}" required></label>
         {% elif category == 'grammar' %}

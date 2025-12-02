@@ -4,6 +4,7 @@
 <div class="card form-card">
     <h2>Create your account</h2>
     <form method="post" class="form-grid">
+        {{ csrf_field() }}
         <label>
             Username
             <input type="text" name="username" required>

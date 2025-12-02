@@ -20,6 +20,7 @@
         <section class="admin-form">
             <h3>AI generate {{ categories[category].label }} questions</h3>
             <form method="post" action="{{ url_for('generate_question_ai', category=category) }}">
+                {{ csrf_field() }}
                 <label>Prompt<textarea name="prompt" rows="3" placeholder="e.g. Focus on travel vocabulary, B1 level."></textarea></label>
                 <button class="btn secondary">Generate via AI</button>
             </form>
@@ -27,6 +28,7 @@
         <section class="admin-form">
             <h3>Add new {{ categories[category].label }} question</h3>
             <form method="post" action="{{ url_for('add_question', category=category) }}">
+                {{ csrf_field() }}
                 {% if category == 'vocabulary' %}
                 <label>Word<input name="word" required></label>
                 {% elif category == 'grammar' %}
@@ -67,6 +69,7 @@
                         <div class="question-actions">
                             <a class="btn ghost" href="{{ url_for('edit_question', category=category, question_id=row['id']) }}">Edit</a>
                             <form method="post" action="{{ url_for('delete_question', category=category, question_id=row['id']) }}" onsubmit="return confirm('Delete question?')">
+                                {{ csrf_field() }}
                                 <button class="btn danger">Delete</button>
                             </form>
                         </div>
@@ -79,6 +82,7 @@
                             {% for item in attached %}
                             <span class="chip">{{ item.name }}</span>
                             <form method="post" action="{{ url_for('remove_question_from_group', category=category) }}" class="inline-form">
+                                {{ csrf_field() }}
                                 <input type="hidden" name="question_id" value="{{ row['id'] }}">
                                 <input type="hidden" name="group_id" value="{{ item.group_id }}">
                                 <button class="btn ghost tiny" type="submit">Remove</button>
@@ -90,6 +94,7 @@
                         {% endif %}
                         {% if groups %}
                         <form class="inline-form select-form" method="post" action="{{ url_for('assign_question_to_group', category=category) }}">
+                            {{ csrf_field() }}
                             <input type="hidden" name="question_id" value="{{ row['id'] }}">
                             <label class="sr-only" for="group-select-{{ row['id'] }}">Group</label>
                             <select id="group-select-{{ row['id'] }}" name="group_id">
@@ -110,6 +115,7 @@
         <section class="admin-form">
             <h3>Create a study pack ({{ categories[category].label }})</h3>
             <form method="post" action="{{ url_for('create_question_group', category=category) }}">
+                {{ csrf_field() }}
                 <label>Name<input name="name" required></label>
                 <label>Description<textarea name="description" rows="2"></textarea></label>
                 <label>Optional AI prompt<textarea name="ai_prompt" rows="2" placeholder="Why this group exists?"></textarea></label>
@@ -128,6 +134,7 @@
                     </div>
                     <div class="admin-actions stacked">
                         <form method="post" action="{{ url_for('share_question_group', group_id=group.id) }}">
+                            {{ csrf_field() }}
                             <input type="hidden" name="category" value="{{ category }}">
                             <label>Share with
                                 <input name="identifier" placeholder="student email">
@@ -143,6 +150,7 @@
                             <li>
                                 {{ assignment.username }} ({{ assignment.email }})
                                 <form method="post" action="{{ url_for('revoke_question_group_assignment', group_id=group.id, assignment_id=assignment.id) }}">
+                                    {{ csrf_field() }}
                                     <input type="hidden" name="category" value="{{ category }}">
                                     <button class="btn tiny">Remove</button>
                                 </form>

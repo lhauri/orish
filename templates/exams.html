@@ -121,6 +121,7 @@
     <h3>Build or generate exams</h3>
     <div class="exam-form-row">
         <form class="exam-form-card" method="post" action="{{ url_for('create_exam') }}">
+            {{ csrf_field() }}
             <p class="eyebrow">Manual setup</p>
             <label>Title<input name="title" required placeholder="e.g. Business vocab check"></label>
             <label>Description<textarea name="description" rows="2" placeholder="Shown to students"></textarea></label>
@@ -141,6 +142,7 @@
             <button class="btn primary">Publish</button>
         </form>
         <form class="exam-form-card" method="post" action="{{ url_for('generate_exam_ai') }}">
+            {{ csrf_field() }}
             <p class="eyebrow">AI co-creator</p>
             <label>Prompt<textarea name="prompt" rows="5" placeholder="Describe the skill, level, and tone. e.g. 'Create a B1 grammar drill on conditional sentences.'"></textarea></label>
             <button class="btn secondary">Generate draft</button>

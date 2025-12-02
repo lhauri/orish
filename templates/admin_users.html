@@ -17,6 +17,7 @@
         <section class="admin-form wide">
             <h3>Create a new account</h3>
             <form method="post">
+                {{ csrf_field() }}
                 <input type="hidden" name="action" value="create">
                 <div class="grid two">
                     <label>Username<input name="username" required></label>
@@ -53,12 +54,14 @@
                             <td>
                                 <div class="user-actions">
                                     <form method="post">
+                                        {{ csrf_field() }}
                                         <input type="hidden" name="user_id" value="{{ user.id }}">
                                         <input type="hidden" name="action" value="demote">
                                         <button class="btn ghost" type="submit" {% if user.id == g.user['id'] %}disabled{% endif %}>Set as student</button>
                                     </form>
                                     {% if user.id != g.user['id'] %}
                                     <form method="post" class="js-delete-user" data-user-name="{{ user.username }}">
+                                        {{ csrf_field() }}
                                         <input type="hidden" name="user_id" value="{{ user.id }}">
                                         <input type="hidden" name="action" value="delete">
                                         <button class="btn danger ghost" type="submit">Delete</button>
@@ -93,11 +96,13 @@
                             <td>
                                 <div class="user-actions">
                                     <form method="post">
+                                        {{ csrf_field() }}
                                         <input type="hidden" name="user_id" value="{{ user.id }}">
                                         <input type="hidden" name="action" value="promote">
                                         <button class="btn primary" type="submit">Make teacher</button>
                                     </form>
                                     <form method="post" class="js-delete-user" data-user-name="{{ user.username }}">
+                                        {{ csrf_field() }}
                                         <input type="hidden" name="user_id" value="{{ user.id }}">
                                         <input type="hidden" name="action" value="delete">
                                         <button class="btn danger ghost" type="submit">Delete</button>

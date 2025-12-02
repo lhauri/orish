@@ -48,6 +48,7 @@
         <h3>Update username</h3>
         <p class="muted">Change how your name appears across dashboards. Usernames must be unique.</p>
         <form method="post" class="form-grid">
+            {{ csrf_field() }}
             <input type="hidden" name="profile_action" value="username">
             <label>
                 <span>New username</span>
@@ -62,6 +63,7 @@
         <h3>Update password</h3>
         <p class="muted">Keep your account secure by choosing a long, memorable passphrase.</p>
         <form method="post" class="form-grid">
+            {{ csrf_field() }}
             <input type="hidden" name="profile_action" value="password">
             <label class="password-field">
                 <span>Current password</span>

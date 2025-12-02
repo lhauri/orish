@@ -4,6 +4,7 @@
 <div class="card form-card">
     <h2>Welcome back</h2>
     <form method="post" class="form-grid">
+        {{ csrf_field() }}
         <label>
             Email or username
             <input type="text" name="identifier" autocomplete="username" required>

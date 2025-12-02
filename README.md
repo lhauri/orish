@@ -75,7 +75,7 @@ Orish is a Flask-based learning companion for English classrooms. It bundles cur
 - **Document analyzer**
   - Accessible via `/analyze` (requires login).
   - Supported extensions: `.pdf`, `.docx`, `.txt`, `.md`, `.csv`, `.xlsx`.
-  - Only the first ~10 pages/rows are parsed to keep response times low.
+  - Only the first ~10 pages/rows are parsed to keep response times low, and uploads above ~2 MB are rejected so parsing stays snappy.
   - If DeepSeek is unavailable, a heuristic analyzer inspects sentence/word counts and surfaces actionable hints.
 
 ## AI configuration & fallbacks
