@@ -48,11 +48,11 @@
                 <span>Translation</span>
             </a>
             {% if g.user %}
-            <a href="{{ url_for('dashboard') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['dashboard', 'profile', 'results'] else 'false' }}">
+            <a href="{{ url_for('dashboard') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['dashboard', 'results'] else 'false' }}">
                 <i data-lucide="activity"></i>
                 <span>Progress</span>
             </a>
-            <a href="{{ url_for('profile') }}" class="nav-item">
+            <a href="{{ url_for('profile') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'profile' else 'false' }}">
                 <i data-lucide="user"></i>
                 <span>Profile</span>
             </a>
