@@ -44,38 +44,40 @@
                 <button class="btn primary">Save question</button>
             </form>
         </section>
-        <section class="admin-list">
+        <section class="admin-list question-bank-list">
             <h3>Existing questions ({{ rows|length }})</h3>
-            <ul>
+            <ul class="question-list">
                 {% for row in rows %}
-                <li>
-                    <div>
-                        {% if category == 'vocabulary' %}
-                        <strong>{{ row['word'] }}</strong>
-                        {% elif category == 'grammar' %}
-                        <strong>{{ row['sentence_with_placeholder'] }}</strong>
-                        {% else %}
-                        <strong>{{ row['prompt']|truncate(60, True) }}</strong>
-                        <p class="muted">Ref: {{ row['reference_answer']|truncate(60, True) }}</p>
-                        {% endif %}
-                    </div>
-                    <div class="admin-actions">
-                        <a class="btn ghost" href="{{ url_for('edit_question', category=category, question_id=row['id']) }}">Edit</a>
-                        <form method="post" action="{{ url_for('delete_question', category=category, question_id=row['id']) }}" onsubmit="return confirm('Delete question?')">
-                            <button class="btn danger">Delete</button>
-                        </form>
+                <li class="question-card">
+                    <div class="question-main">
+                        <div>
+                            {% if category == 'vocabulary' %}
+                            <p class="question-title">{{ row['word'] }}</p>
+                            {% elif category == 'grammar' %}
+                            <p class="question-title">{{ row['sentence_with_placeholder'] }}</p>
+                            {% else %}
+                            <p class="question-title">{{ row['prompt']|truncate(60, True) }}</p>
+                            <p class="muted tiny">Ref: {{ row['reference_answer']|truncate(80, True) }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="question-actions">
+                            <a class="btn ghost" href="{{ url_for('edit_question', category=category, question_id=row['id']) }}">Edit</a>
+                            <form method="post" action="{{ url_for('delete_question', category=category, question_id=row['id']) }}" onsubmit="return confirm('Delete question?')">
+                                <button class="btn danger">Delete</button>
+                            </form>
+                        </div>
                     </div>
                     <div class="group-meta">
                         {% set attached = memberships.get(row['id'], []) %}
                         {% if attached %}
-                        <p class="muted tiny">Groups:</p>
-                        <div>
+                        <p class="muted tiny">Groups</p>
+                        <div class="group-chips">
                             {% for item in attached %}
-                            <span class="tag">{{ item.name }}</span>
-                            <form method="post" action="{{ url_for('remove_question_from_group', category=category) }}">
+                            <span class="chip">{{ item.name }}</span>
+                            <form method="post" action="{{ url_for('remove_question_from_group', category=category) }}" class="inline-form">
                                 <input type="hidden" name="question_id" value="{{ row['id'] }}">
                                 <input type="hidden" name="group_id" value="{{ item.group_id }}">
-                                <button class="btn ghost" type="submit">Remove</button>
+                                <button class="btn ghost tiny" type="submit">Remove</button>
                             </form>
                             {% endfor %}
                         </div>
@@ -83,17 +85,15 @@
                         <p class="muted tiny">Not part of any group.</p>
                         {% endif %}
                         {% if groups %}
-                        <form class="inline-form" method="post" action="{{ url_for('assign_question_to_group', category=category) }}">
+                        <form class="inline-form select-form" method="post" action="{{ url_for('assign_question_to_group', category=category) }}">
                             <input type="hidden" name="question_id" value="{{ row['id'] }}">
-                            <label>
-                                <span class="sr-only">Group</span>
-                                <select name="group_id">
-                                    {% for group in groups %}
-                                    <option value="{{ group.id }}">{{ group.name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </label>
-                            <button class="btn ghost">Add to group</button>
+                            <label class="sr-only" for="group-select-{{ row['id'] }}">Group</label>
+                            <select id="group-select-{{ row['id'] }}" name="group_id">
+                                {% for group in groups %}
+                                <option value="{{ group.id }}">{{ group.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button class="btn ghost tiny">Add to group</button>
                         </form>
                         {% endif %}
                     </div>
