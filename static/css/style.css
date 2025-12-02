@@ -933,6 +933,12 @@ select,
     width: 100%;
 }
 
+.user-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
 .sr-only {
     position: absolute;
     width: 1px;

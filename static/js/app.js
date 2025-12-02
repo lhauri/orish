@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (submitButton && !submitButton.classList.contains('loading')) {
                 submitButton.classList.add('loading');
                 submitButton.setAttribute('aria-busy', 'true');
-                submitButton.disabled = true;
+                submitButton.setAttribute('data-loading', 'true');
             }
         });
     });
