@@ -16,7 +16,7 @@
             <div class="progress-bar" style="width: {{ (current / total) * 100 }}%"></div>
         </div>
     </div>
-    <form method="post" class="quiz-form">
+    <form method="post" class="quiz-form" data-enter-submit="true">
         <input type="hidden" name="mode" value="{{ mode }}">
         <p class="prompt">{{ question.prompt }}</p>
         {% if question.answer_type == 'text' %}

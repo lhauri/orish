@@ -138,6 +138,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    document.querySelectorAll('form[data-enter-submit="true"]').forEach(form => {
+        form.addEventListener('keydown', event => {
+            const target = event.target;
+            if (
+                event.key === 'Enter' &&
+                !event.shiftKey &&
+                target.tagName === 'TEXTAREA'
+            ) {
+                event.preventDefault();
+                form.requestSubmit();
+            }
+        });
+    });
+
     const mindmap = document.getElementById('mindmap');
     if (mindmap) {
         const center = mindmap.querySelector('.node.center');

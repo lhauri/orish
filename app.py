@@ -15,6 +15,7 @@ import re
 import sqlite3
 from collections import Counter
 from datetime import datetime
+from difflib import SequenceMatcher
 from functools import wraps
 from io import BytesIO
 
@@ -59,6 +60,29 @@ DEEPSEEK_TIMEOUT = 30
 ALLOWED_UPLOADS = {".txt", ".md", ".pdf", ".docx", ".xlsx", ".csv"}
 
 
+def _normalize_answer(text):
+    text = (text or "").lower()
+    text = re.sub(r"[^a-z0-9äöüß]+", " ", text)
+    return " ".join(text.split())
+
+
+def _answers_close(student_answer, reference):
+    student_norm = _normalize_answer(student_answer)
+    reference_norm = _normalize_answer(reference)
+    if not student_norm or not reference_norm:
+        return False
+    if student_norm == reference_norm:
+        return True
+    ratio = SequenceMatcher(None, student_norm, reference_norm).ratio()
+    if ratio >= 0.88:
+        return True
+    student_tokens = set(student_norm.split())
+    reference_tokens = set(reference_norm.split())
+    if reference_tokens and len(reference_tokens - student_tokens) <= 1:
+        return True
+    return False
+
+
 def evaluate_text_answer(prompt, reference, student_answer):
     """Use DeepSeek (or a fallback) to judge free-text answers."""
     student_answer = (student_answer or "").strip()
@@ -70,11 +94,13 @@ def evaluate_text_answer(prompt, reference, student_answer):
             "explanation": "Please provide a response so we can review it.",
         }
 
-    fallback_correct = student_answer.lower() == reference.lower()
+    fallback_correct = _answers_close(student_answer, reference)
     base_feedback = {
         "is_correct": fallback_correct,
         "feedback": (
-            "Looks good! Keep it up." if fallback_correct else f"Expected: {reference}"
+            "Looks good! Keep it up."
+            if fallback_correct
+            else f"Expected something close to: {reference}"
         ),
         "explanation": "",
     }
@@ -103,6 +129,11 @@ def evaluate_text_answer(prompt, reference, student_answer):
         if not text:
             raise RuntimeError("Empty AI feedback.")
         data = json.loads(_sanitize_ai_text_payload(text))
+        ai_correct = bool(data.get("is_correct"))
+        if not ai_correct and fallback_correct:
+            ai_correct = True
+            data["feedback"] = data.get("feedback") or "Close enough to count as correct."
+        data["is_correct"] = ai_correct
         return {
             "is_correct": bool(data.get("is_correct")),
             "feedback": data.get("feedback") or base_feedback["feedback"],
@@ -111,6 +142,26 @@ def evaluate_text_answer(prompt, reference, student_answer):
     except Exception as exc:  # pragma: no cover - defensive
         app.logger.warning("DeepSeek grading failed: %s", exc)
         return base_feedback
+
+
+def finalize_text_answers(answer_records):
+    """Run AI grading for any pending text answers at the end of a session."""
+    extra_correct = 0
+    for record in answer_records:
+        if not record.get("needs_ai"):
+            continue
+        evaluation = evaluate_text_answer(
+            record["question"]["prompt"],
+            record["question"]["correct_answer"],
+            record.get("selected", ""),
+        )
+        record["is_correct"] = evaluation["is_correct"]
+        record["feedback"] = evaluation.get("feedback")
+        record["explanation"] = evaluation.get("explanation")
+        record.pop("needs_ai", None)
+        if record["is_correct"]:
+            extra_correct += 1
+    return extra_correct
 
 
 def summarize_attempt_for_teacher(exam_title, answers):
@@ -1413,7 +1464,7 @@ def admin_users():
             message = f"Confirm delete {target['username']}."
             if is_ajax:
                 return ajax_response(message, status="info")
-            return message, 200
+            flash(message, "warning")
         else:
             message = "Unknown action."
             if is_ajax:
@@ -2071,12 +2122,10 @@ def take_exam(exam_id):
         question = exam_state["questions"][current_index]
         if question["answer_type"] == "text":
             selected = request.form.get("text_answer", "").strip()
-            evaluation = evaluate_text_answer(
-                question["prompt"], question["correct_answer"], selected
-            )
-            is_correct = evaluation["is_correct"]
-            feedback = evaluation.get("feedback")
-            explanation = evaluation.get("explanation")
+            is_correct = False
+            feedback = "AI review pending. You'll see personalised feedback at the end."
+            explanation = ""
+            pending_ai = True
         else:
             selected = request.form.get("answer")
             if not selected:
@@ -2085,6 +2134,7 @@ def take_exam(exam_id):
             is_correct = selected == question["correct_answer"]
             feedback = ""
             explanation = ""
+            pending_ai = False
         exam_state["answers"].append(
             {
                 "question": question,
@@ -2092,14 +2142,16 @@ def take_exam(exam_id):
                 "is_correct": is_correct,
                 "feedback": feedback,
                 "explanation": explanation,
+                "needs_ai": pending_ai,
             }
         )
-        if is_correct:
+        if is_correct and not pending_ai:
             exam_state["score"] += 1
         exam_state["current"] += 1
         session["exam"] = exam_state
 
         if exam_state["current"] >= exam_state["total"]:
+            exam_state["score"] += finalize_text_answers(exam_state["answers"])
             db = get_db()
             details_json = json.dumps(exam_state["answers"])
             ai_summary = None
@@ -2280,12 +2332,10 @@ def quiz(category):
         question = quiz_state["questions"][current_index]
         if question["answer_type"] == "text":
             selected = request.form.get("text_answer", "").strip()
-            evaluation = evaluate_text_answer(
-                question["prompt"], question["correct_answer"], selected
-            )
-            is_correct = evaluation["is_correct"]
-            feedback = evaluation.get("feedback")
-            explanation = evaluation.get("explanation")
+            is_correct = False
+            feedback = "AI review pending. You'll see the verdict in the summary."
+            explanation = ""
+            pending_ai = True
         else:
             selected = request.form.get("answer")
             if not selected:
@@ -2294,6 +2344,7 @@ def quiz(category):
             is_correct = selected == question["correct_answer"]
             feedback = ""
             explanation = ""
+            pending_ai = False
         quiz_state["answers"].append(
             {
                 "question": question,
@@ -2301,14 +2352,16 @@ def quiz(category):
                 "is_correct": is_correct,
                 "feedback": feedback,
                 "explanation": explanation,
+                "needs_ai": pending_ai,
             }
         )
-        if is_correct:
+        if is_correct and not pending_ai:
             quiz_state["score"] += 1
         quiz_state["current"] += 1
         session["quiz"] = quiz_state
 
         if quiz_state["current"] >= quiz_state["total"]:
+            quiz_state["score"] += finalize_text_answers(quiz_state["answers"])
             db = get_db()
             db.execute(
                 "INSERT INTO results (user_id, category, score, total, created_at) VALUES (?, ?, ?, ?, ?)",
@@ -2393,12 +2446,10 @@ def study_group(group_id):
         question = pack_state["questions"][current_index]
         if question["answer_type"] == "text":
             selected = request.form.get("text_answer", "").strip()
-            evaluation = evaluate_text_answer(
-                question["prompt"], question["correct_answer"], selected
-            )
-            is_correct = evaluation["is_correct"]
-            feedback = evaluation.get("feedback")
-            explanation = evaluation.get("explanation")
+            is_correct = False
+            feedback = "AI review pending. You'll see feedback in the summary."
+            explanation = ""
+            pending_ai = True
         else:
             selected = request.form.get("answer")
             if not selected:
@@ -2407,6 +2458,7 @@ def study_group(group_id):
             is_correct = selected == question["correct_answer"]
             feedback = ""
             explanation = ""
+            pending_ai = False
         pack_state["answers"].append(
             {
                 "question": question,
@@ -2414,13 +2466,15 @@ def study_group(group_id):
                 "is_correct": is_correct,
                 "feedback": feedback,
                 "explanation": explanation,
+                "needs_ai": pending_ai,
             }
         )
-        if is_correct:
+        if is_correct and not pending_ai:
             pack_state["score"] += 1
         pack_state["current"] += 1
         session["group_quiz"] = pack_state
         if pack_state["current"] >= pack_state["total"]:
+            pack_state["score"] += finalize_text_answers(pack_state["answers"])
             db = get_db()
             db.execute(
                 "INSERT INTO results (user_id, category, score, total, created_at) VALUES (?, ?, ?, ?, ?)",
