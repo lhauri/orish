@@ -10,16 +10,37 @@
         </div>
         <a class="btn ghost" href="{{ url_for('exams') }}">Back to exams</a>
     </div>
-    <div>
-        <p class="muted tiny">Question target: {{ exam.questions }}</p>
-        <p class="muted tiny">Custom questions: {{ stats.specific }} • Bank backup: {{ stats.general }}</p>
+    <div class="exam-manage-meta">
+        <div class="metric-card">
+            <p class="muted tiny">Question target</p>
+            <p class="metric-value">{{ exam.questions }}</p>
+        </div>
+        <div class="metric-card">
+            <p class="muted tiny">Custom questions</p>
+            <p class="metric-value">{{ stats.specific }}</p>
+        </div>
+        <div class="metric-card">
+            <p class="muted tiny">Bank backup</p>
+            <p class="metric-value">{{ stats.general }}</p>
+        </div>
     </div>
-    <form class="form-grid" method="post" action="{{ url_for('update_exam_settings', exam_id=exam.id) }}">
-        <label>Questions<input type="number" name="questions" min="3" max="30" value="{{ exam.questions }}"></label>
-        <label><input type="checkbox" name="study_enabled" {% if exam.study_enabled %}checked{% endif %}> Allow study mode</label>
-        <label><input type="checkbox" name="test_enabled" {% if exam.test_enabled %}checked{% endif %}> Allow test mode</label>
-        <label><input type="checkbox" name="is_active" {% if exam.is_active %}checked{% endif %}> Visible to assigned students</label>
-        <button class="btn primary">Update settings</button>
+    <form class="exam-settings-grid" method="post" action="{{ url_for('update_exam_settings', exam_id=exam.id) }}">
+        <label>Question count
+            <input type="number" name="questions" min="3" max="30" value="{{ exam.questions }}">
+        </label>
+        <label class="toggle">
+            <input type="checkbox" name="study_enabled" {% if exam.study_enabled %}checked{% endif %}>
+            <span>Allow study mode</span>
+        </label>
+        <label class="toggle">
+            <input type="checkbox" name="test_enabled" {% if exam.test_enabled %}checked{% endif %}>
+            <span>Allow test mode</span>
+        </label>
+        <label class="toggle">
+            <input type="checkbox" name="is_active" {% if exam.is_active %}checked{% endif %}>
+            <span>Visible to assigned students</span>
+        </label>
+        <button class="btn primary exam-settings-btn">Update settings</button>
     </form>
 </div>
 <div class="card">
@@ -30,7 +51,7 @@
             <p class="muted">Questions listed here are used first, then the general {{ categories[exam.category].label }} bank fills any remaining slots.</p>
         </div>
     </div>
-    <div class="admin-list">
+    <div class="exam-question-list">
         {% if questions %}
         <ul class="answer-list">
             {% for question in questions %}
@@ -55,8 +76,8 @@
         <p class="muted">No custom questions yet. Add some below or let AI draft them.</p>
         {% endif %}
     </div>
-    <div class="form-grid">
-        <form method="post" action="{{ url_for('add_exam_question', exam_id=exam.id) }}">
+    <div class="exam-question-forms">
+        <form method="post" action="{{ url_for('add_exam_question', exam_id=exam.id) }}" class="exam-form-panel">
             <h4>Add manual question</h4>
             <label>Prompt<textarea name="prompt" rows="3" required></textarea></label>
             <label>Answer type
@@ -72,7 +93,7 @@
             <label>Reference answer<textarea name="reference_answer" rows="2" placeholder="Required for open responses"></textarea></label>
             <button class="btn primary">Add question</button>
         </form>
-        <form method="post" action="{{ url_for('add_exam_questions_ai', exam_id=exam.id) }}">
+        <form method="post" action="{{ url_for('add_exam_questions_ai', exam_id=exam.id) }}" class="exam-form-panel">
             <h4>Use AI helper</h4>
             <label>Prompt<textarea name="prompt" rows="4" placeholder="e.g. Focus on reported speech transformations." ></textarea></label>
             <button class="btn secondary">Generate {{ categories[exam.category].label }} questions</button>
@@ -87,10 +108,16 @@
             <p class="muted">Students must be listed below before they can see this exam.</p>
         </div>
     </div>
-    <form class="form-grid" method="post" action="{{ url_for('assign_exam_to_student', exam_id=exam.id) }}">
+    <form class="exam-share-form form-grid" method="post" action="{{ url_for('assign_exam_to_student', exam_id=exam.id) }}">
         <label>Student username or email<input name="identifier" required></label>
-        <label><input type="checkbox" name="can_study" checked> Allow study mode</label>
-        <label><input type="checkbox" name="can_test" checked> Allow test mode</label>
+        <label class="toggle">
+            <input type="checkbox" name="can_study" checked>
+            <span>Allow study mode</span>
+        </label>
+        <label class="toggle">
+            <input type="checkbox" name="can_test" checked>
+            <span>Allow test mode</span>
+        </label>
         <button class="btn primary">Share exam</button>
     </form>
     <div class="table-scroll">

@@ -56,6 +56,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const forms = Array.from(document.querySelectorAll('form'));
+    forms.forEach(form => {
+        if (form.dataset.skipLoading === 'true') {
+            return;
+        }
+        form.addEventListener('submit', () => {
+            const submitButton =
+                form.querySelector('button[type="submit"].btn') ||
+                form.querySelector('button.btn:not([type])');
+            if (submitButton && !submitButton.classList.contains('loading')) {
+                submitButton.classList.add('loading');
+                submitButton.setAttribute('aria-busy', 'true');
+                submitButton.disabled = true;
+            }
+        });
+    });
+
     const mindmap = document.getElementById('mindmap');
     if (mindmap) {
         const center = mindmap.querySelector('.node.center');
