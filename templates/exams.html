@@ -44,10 +44,12 @@
         <article class="exam-card">
             <div class="exam-card-main">
                 <header>
-                    <div class="badge-row">
+                    <div class="exam-header-row">
                         <span class="tag">{{ exam.category_label }}</span>
-                        {% if exam.study_enabled %}<span class="pill">Study</span>{% endif %}
-                        {% if exam.test_enabled %}<span class="pill secondary">Test</span>{% endif %}
+                        <div class="mode-pills">
+                            {% if exam.study_enabled %}<span class="pill">Study</span>{% endif %}
+                            {% if exam.test_enabled %}<span class="pill secondary">Test</span>{% endif %}
+                        </div>
                     </div>
                     <div>
                         <h3>{{ exam.title }}</h3>
@@ -73,16 +75,20 @@
                 {% endif %}
             </div>
             <div class="exam-card-footer">
-                <div class="exam-actions">
-                    <a class="btn ghost {% if not study_allowed %}disabled{% endif %}" {% if study_allowed %}href="{{ url_for('take_exam', exam_id=exam.id, mode='study') }}"{% else %}aria-disabled="true"{% endif %}>Study mode</a>
-                    <a class="btn primary {% if not test_allowed %}disabled{% endif %}" {% if test_allowed %}href="{{ url_for('take_exam', exam_id=exam.id, mode='test') }}"{% else %}aria-disabled="true"{% endif %}>Test mode</a>
+                <div class="exam-action-grid">
+                    <a class="btn action {% if not study_allowed %}disabled{% endif %}"
+                        {% if study_allowed %}href="{{ url_for('take_exam', exam_id=exam.id, mode='study') }}"
+                        {% else %}aria-disabled="true"{% endif %}>Study mode</a>
+                    <a class="btn action primary {% if not test_allowed %}disabled{% endif %}"
+                        {% if test_allowed %}href="{{ url_for('take_exam', exam_id=exam.id, mode='test') }}"
+                        {% else %}aria-disabled="true"{% endif %}>Test mode</a>
+                    {% if g.user['is_admin'] %}
+                    <a class="btn action outline"
+                        href="{{ url_for('manage_exam', exam_id=exam.id) }}">Manage exam</a>
+                    <a class="btn action outline"
+                        href="{{ url_for('admin_questions', category=exam.category) }}">Question bank</a>
+                    {% endif %}
                 </div>
-                {% if g.user['is_admin'] %}
-                <div class="exam-admin-actions">
-                    <a class="btn outline" href="{{ url_for('manage_exam', exam_id=exam.id) }}">Manage exam</a>
-                    <a class="btn outline" href="{{ url_for('admin_questions', category=exam.category) }}">Question bank</a>
-                </div>
-                {% endif %}
             </div>
         </article>
         {% endfor %}

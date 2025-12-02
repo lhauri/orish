@@ -1261,40 +1261,67 @@ select,
     gap: 0.3rem;
 }
 
-.badge-row {
+.exam-header-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.mode-pills {
+    margin-left: auto;
     display: flex;
     gap: 0.4rem;
-    flex-wrap: wrap;
+    align-items: center;
 }
 
-.exam-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 0.65rem;
+.pill {
+    padding: 0.2rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: rgba(99, 102, 241, 0.2);
+    color: #4338ca;
+    border: 1px solid rgba(99, 102, 241, 0.3);
 }
 
-.exam-actions .btn {
-    flex: 1;
+.pill.secondary {
+    background: rgba(14, 165, 233, 0.2);
+    color: #0c4a6e;
+    border-color: rgba(14, 165, 233, 0.35);
+}
+
+.exam-action-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.75rem;
+    margin-top: auto;
+}
+
+.btn.action {
     text-align: center;
     border-radius: 16px;
     padding: 0.85rem 1rem;
     font-weight: 600;
     box-shadow: var(--shadow-sm);
-}
-
-.exam-actions .btn.disabled {
-    pointer-events: none;
-    opacity: 0.6;
-}
-
-.exam-actions .btn.ghost {
-    background: rgba(255, 255, 255, 0.65);
+    background: rgba(255, 255, 255, 0.75);
     border: 1px solid rgba(79, 70, 229, 0.2);
 }
 
-.exam-actions .btn.primary {
+.btn.action.primary {
     background: linear-gradient(120deg, #6366f1, #8b5cf6);
+    color: #fff;
     border: none;
+}
+
+.btn.action.outline {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(79, 70, 229, 0.35);
+    color: var(--primary);
+}
+
+.btn.action.disabled {
+    pointer-events: none;
+    opacity: 0.45;
 }
 
 .exam-card small {
@@ -1335,18 +1362,6 @@ select,
     display: inline-block;
 }
 
-.exam-admin-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.6rem;
-}
-
-.exam-admin-actions .btn {
-    flex: 1;
-    text-align: center;
-    border-radius: 14px;
-    padding: 0.7rem 0.8rem;
-}
 
 .instructions-card {
     margin-top: 1rem;
