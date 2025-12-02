@@ -282,6 +282,119 @@ FALLBACK_EXAM_TEMPLATES = [
     },
 ]
 
+LEGAL_SECTIONS = [
+    {
+        "id": "terms",
+        "title": "Nutzungsbedingungen",
+        "eyebrow": "Terms of Service",
+        "intro": (
+            "Orish richtet sich an Lernende und Lehrpersonen, die Englischkenntnisse "
+            "verbessern möchten. Durch die Nutzung erklärst du dich mit den folgenden Regeln einverstanden."
+        ),
+        "clauses": [
+            {
+                "title": "Zulässige Nutzung",
+                "body": (
+                    "Die Plattform darf ausschließlich für persönliche oder schulische Lernzwecke verwendet werden. "
+                    "Automatisierte Abfragen, unautorisierte Kopien oder das Teilen von geschützten Inhalten mit Dritten "
+                    "sind untersagt."
+                ),
+            },
+            {
+                "title": "Accounts & Sicherheit",
+                "body": (
+                    "Nutzerinnen und Nutzer sind verantwortlich für die Sicherheit ihres Accounts. "
+                    "Melde uns bitte sofort, falls ein Verdacht auf unbefugten Zugriff besteht."
+                ),
+            },
+            {
+                "title": "Lehrpersonen",
+                "body": (
+                    "Teacher-Dashboards dürfen nur mit Zustimmung der Schule eingesetzt werden. "
+                    "Exportierte Daten dürfen ausschließlich zur Leistungsbeurteilung der eigenen Klasse genutzt werden."
+                ),
+            },
+            {
+                "title": "Verfügbarkeit",
+                "body": (
+                    "Wir bemühen uns um hohe Verfügbarkeit, behalten uns jedoch Wartungsfenster oder Änderungen am Dienst vor. "
+                    "Bei gravierenden Änderungen informieren wir registrierte Benutzer per E-Mail."
+                ),
+            },
+        ],
+    },
+    {
+        "id": "privacy",
+        "title": "Datenschutzerklärung",
+        "eyebrow": "Privacy Notice",
+        "intro": (
+            "Wir verarbeiten nur die Daten, die für die Bereitstellung der Lernplattform notwendig sind "
+            "und halten uns an die DSGVO sowie das Schweizer DSG."
+        ),
+        "clauses": [
+            {
+                "title": "Welche Daten werden erhoben?",
+                "body": (
+                    "Basisdaten (Name, Benutzername, Schul-E-Mail), Lernfortschritte (Quiz-Antworten, Scores, Feedback) "
+                    "sowie freiwillige Uploads für KI-Analysen. Zahlungsdaten werden nicht gespeichert."
+                ),
+            },
+            {
+                "title": "Zweck der Verarbeitung",
+                "body": (
+                    "Bereitstellung der Übungen, individualisierte Rückmeldungen, statistische Auswertungen für Lehrpersonen "
+                    "sowie technische Sicherheit (Logging, Fehlermeldungen)."
+                ),
+            },
+            {
+                "title": "Speicherdauer",
+                "body": (
+                    "Accountdaten werden solange aufbewahrt, wie du einen aktiven Zugang hast. "
+                    "Auf Anfrage löschen wir Daten innerhalb von 30 Tagen. Prüfungsresultate werden nach 18 Monaten anonymisiert."
+                ),
+            },
+            {
+                "title": "Weitergabe & Auftragsverarbeiter",
+                "body": (
+                    "Hosting erfolgt in der EU. KI-Funktionen können DeepSeek/OpenAI nutzen; "
+                    "es werden dabei nur die notwendigen Textausschnitte übertragen. "
+                    "Es findet keine Weitergabe an Werbenetzwerke statt."
+                ),
+            },
+            {
+                "title": "Deine Rechte",
+                "body": (
+                    "Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung "
+                    "und Datenübertragbarkeit. Wende dich dafür an privacy@orish.app."
+                ),
+            },
+        ],
+    },
+    {
+        "id": "contact",
+        "title": "Kontakt & Verantwortliche Stelle",
+        "eyebrow": "Contact",
+        "intro": (
+            "Für alle rechtlichen Anliegen stehen wir gerne zur Verfügung. "
+            "Wir antworten in der Regel innerhalb von zwei Werktagen."
+        ),
+        "clauses": [
+            {
+                "title": "Verantwortlich",
+                "body": "Orish Learning Collective • Militärstrasse 52 • 8004 Zürich • Schweiz",
+            },
+            {
+                "title": "E-Mail",
+                "body": "privacy@orish.app",
+            },
+            {
+                "title": "Vertretungsberechtigte Person",
+                "body": "Sarah Keller, Head of Learning Experience",
+            },
+        ],
+    },
+]
+
 
 def _fallback_questions_for_category(category, max_items=3):
     templates = FALLBACK_GENERATED_QUESTIONS.get(category, [])
@@ -810,6 +923,15 @@ def fetch_random_questions(category_key, limit=5):
 @app.route("/")
 def home():
     return render_template("home.html")
+
+
+@app.route("/legal")
+def legal():
+    return render_template(
+        "legal.html",
+        sections=LEGAL_SECTIONS,
+        legal_updated=datetime.utcnow().strftime("%d.%m.%Y"),
+    )
 
 
 @app.route("/mindmap")

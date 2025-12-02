@@ -8,40 +8,57 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body class="layout">
+    <div class="surface-veil" aria-hidden="true"></div>
     <header class="top-bar">
-        <div class="logo">Orish</div>
-        <nav class="nav-links">
+        <a class="logo" href="{{ url_for('home') }}">
+            <span class="logo-mark">Orish</span>
+            <span class="logo-subtitle">English Skills Studio</span>
+        </a>
+        <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="primary-nav">
+            <i data-lucide="menu"></i>
+        </button>
+        <nav id="primary-nav" class="nav-links" data-open="false">
             <a href="{{ url_for('home') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'home' else 'false' }}">
-                <i data-lucide="home"></i> Home
+                <i data-lucide="home"></i>
+                <span>Home</span>
             </a>
             <a href="{{ url_for('quiz', category='vocabulary') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'quiz' and request.view_args and request.view_args.get('category') == 'vocabulary' else 'false' }}">
-                <i data-lucide="type"></i> Vocabulary
+                <i data-lucide="type"></i>
+                <span>Vocabulary</span>
             </a>
             <a href="{{ url_for('quiz', category='grammar') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'quiz' and request.view_args and request.view_args.get('category') == 'grammar' else 'false' }}">
-                <i data-lucide="book"></i> Grammar
+                <i data-lucide="book"></i>
+                <span>Grammar</span>
             </a>
             <a href="{{ url_for('quiz', category='reading') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'quiz' and request.view_args and request.view_args.get('category') == 'reading' else 'false' }}">
-                <i data-lucide="file-text"></i> Reading
+                <i data-lucide="file-text"></i>
+                <span>Reading</span>
             </a>
             <a href="{{ url_for('quiz', category='translation') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'quiz' and request.view_args and request.view_args.get('category') == 'translation' else 'false' }}">
-                <i data-lucide="languages"></i> Translation
+                <i data-lucide="languages"></i>
+                <span>Translation</span>
             </a>
             {% if g.user %}
             <a href="{{ url_for('dashboard') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['dashboard', 'profile', 'results'] else 'false' }}">
-                <i data-lucide="activity"></i> Progress
+                <i data-lucide="activity"></i>
+                <span>Progress</span>
             </a>
             <a href="{{ url_for('profile') }}" class="nav-item">
-                <i data-lucide="user"></i> Profile
+                <i data-lucide="user"></i>
+                <span>Profile</span>
             </a>
             <a href="{{ url_for('logout') }}" class="nav-item">
-                <i data-lucide="log-out"></i> Logout
+                <i data-lucide="log-out"></i>
+                <span>Logout</span>
             </a>
             {% else %}
-            <a href="{{ url_for('login') }}" class="nav-item">
-                <i data-lucide="log-in"></i> Login
+            <a href="{{ url_for('login') }}" class="nav-item pill">
+                <i data-lucide="log-in"></i>
+                <span>Login</span>
             </a>
             <a href="{{ url_for('register') }}" class="nav-item accent">
-                <i data-lucide="user-plus"></i> Join
+                <i data-lucide="user-plus"></i>
+                <span>Join</span>
             </a>
             {% endif %}
         </nav>
@@ -61,7 +78,28 @@
     </main>
 
     <footer class="footer">
-        <p>© {{ current_year or 2024 }} Orish • Built for GIBB learners</p>
+        <div class="footer-grid">
+            <div class="footer-column">
+                <p class="logo-mark">Orish</p>
+                <p class="footer-text">Short daily practice powered by AI feedback and teacher-friendly analytics.</p>
+                <p class="footer-meta">© {{ current_year or 2024 }} Orish • Built for GIBB learners</p>
+            </div>
+            <div class="footer-column">
+                <p class="footer-heading">Explore</p>
+                <a href="{{ url_for('home') }}">Startseite</a>
+                <a href="{{ url_for('dashboard') if g.user else url_for('register') }}">
+                    {{ 'Dashboard' if g.user else 'Registrieren' }}
+                </a>
+                <a href="{{ url_for('quiz', category='vocabulary') }}">Vokabeln</a>
+                <a href="{{ url_for('quiz', category='grammar') }}">Grammatik</a>
+            </div>
+            <div class="footer-column">
+                <p class="footer-heading">Rechtliches</p>
+                <a href="{{ url_for('legal') }}#terms">Nutzungsbedingungen</a>
+                <a href="{{ url_for('legal') }}#privacy">Datenschutzerklärung</a>
+                <a href="{{ url_for('legal') }}#contact">Kontakt</a>
+            </div>
+        </div>
     </footer>
 
     <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>

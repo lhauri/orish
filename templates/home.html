@@ -1,56 +1,133 @@
 {% extends 'base.html' %}
 {% block title %}Orish • English Practice{% endblock %}
 {% block content %}
-<section class="hero stacked">
-    <div class="hero-text">
-        <p class="tag">Practice made simple</p>
-        <h1>Pick a skill and start learning.</h1>
-        <p class="subtitle">Each module gives you five curated prompts, instant feedback, and gentle tracking of your progress.</p>
+<section class="hero-grid">
+    <div class="hero-main">
+        <p class="eyebrow">Built for apprentices &amp; Berufsmatura prep</p>
+        <h1>English practice that fits into any commute or study break.</h1>
+        <p class="subtitle">Curated question blocks, bilingual hints, and optional AI explanations keep you motivated while teachers still stay in control.</p>
         <div class="hero-actions">
             {% if g.user %}
-            <a href="{{ url_for('dashboard') }}" class="btn primary">View my progress</a>
+            <a href="{{ url_for('dashboard') }}" class="btn primary">Weiterlernen</a>
+            <a href="{{ url_for('quiz_select') }}" class="btn secondary ghost">Choose another skill</a>
             {% else %}
-            <a href="{{ url_for('register') }}" class="btn primary">Create an account</a>
+            <a href="{{ url_for('register') }}" class="btn primary">Create a free account</a>
             <a href="{{ url_for('login') }}" class="btn ghost">Log in</a>
             {% endif %}
         </div>
+        <ul class="hero-signals">
+            <li>
+                <span class="signal-title">5 question sprints</span>
+                <p>Fast sessions with instant explanations.</p>
+            </li>
+            <li>
+                <span class="signal-title">Progress reports</span>
+                <p>Spot weak areas before exams.</p>
+            </li>
+            <li>
+                <span class="signal-title">Datenschutz ready</span>
+                <p>Transparent legal pages + EU hosting.</p>
+            </li>
+        </ul>
+    </div>
+    <div class="hero-panel">
+        <div class="panel-card">
+            <p class="eyebrow">Live snapshot</p>
+            <h3>Track what matters</h3>
+            <ul class="panel-stats">
+                <li>
+                    <span class="stat-label">Accuracy trend</span>
+                    <span class="stat-value">+14%</span>
+                </li>
+                <li>
+                    <span class="stat-label">Sessions this week</span>
+                    <span class="stat-value">7</span>
+                </li>
+                <li>
+                    <span class="stat-label">AI feedback</span>
+                    <span class="stat-value">Enabled</span>
+                </li>
+            </ul>
+        </div>
+        <div class="panel-card soft">
+            <p>“My class uses Orish for warm-ups. The interface is endlich verständlich and the results export saves me hours.”</p>
+            <span class="quote-meta">— Leonie, EFL teacher</span>
+        </div>
     </div>
 </section>
-<section class="card">
-    <p class="tag">Choose a focus</p>
-    <div class="category-grid">
-        <article class="category-card vocab">
+
+<section class="card surface">
+    <header class="section-head">
+        <div>
+            <p class="eyebrow">Choose a focus</p>
+            <h2>Study blocks for every skill</h2>
+        </div>
+        <p class="section-subtitle">Each quiz is handcrafted or AI-verified so you can trust the feedback you receive.</p>
+    </header>
+    <div class="focus-grid">
+        <article class="focus-card">
             <header>
                 <i data-lucide="type"></i>
-                <h3>Vocabulary</h3>
+                <div>
+                    <p class="tag">Vocabulary</p>
+                    <h3>Boost word power</h3>
+                </div>
             </header>
-            <p>Match words to meanings. Great for warming up before class.</p>
+            <p>Match words to concise definitions and see example sentences instantly.</p>
             <a class="btn primary" href="{{ url_for('quiz', category='vocabulary') }}">Start vocabulary</a>
         </article>
-        <article class="category-card grammar">
+        <article class="focus-card">
             <header>
                 <i data-lucide="book"></i>
-                <h3>Grammar</h3>
+                <div>
+                    <p class="tag">Grammar</p>
+                    <h3>Master the patterns</h3>
+                </div>
             </header>
-            <p>Fill the blanks and polish sentence patterns.</p>
+            <p>Spot common structures and fill the blank with smart cues.</p>
             <a class="btn primary" href="{{ url_for('quiz', category='grammar') }}">Start grammar</a>
         </article>
-        <article class="category-card reading">
+        <article class="focus-card">
             <header>
                 <i data-lucide="file-text"></i>
-                <h3>Reading</h3>
+                <div>
+                    <p class="tag">Reading</p>
+                    <h3>Understand quickly</h3>
+                </div>
             </header>
-            <p>Short passages with comprehension questions.</p>
+            <p>Digest short passages with guiding questions to build confidence.</p>
             <a class="btn primary" href="{{ url_for('quiz', category='reading') }}">Start reading</a>
         </article>
-        <article class="category-card translation">
+        <article class="focus-card">
             <header>
                 <i data-lucide="languages"></i>
-                <h3>Translation</h3>
+                <div>
+                    <p class="tag">Translation</p>
+                    <h3>Explain your ideas</h3>
+                </div>
             </header>
-            <p>Write short answers. AI coaching is included when available.</p>
+            <p>Write short answers and let AI plus teachers supply meaningful corrections.</p>
             <a class="btn primary" href="{{ url_for('quiz', category='translation') }}">Start translation</a>
         </article>
     </div>
+</section>
+
+<section class="info-grid">
+    <article class="info-card">
+        <p class="eyebrow">01 • Transparent learning</p>
+        <h3>Clear goals for every attempt</h3>
+        <p>Each module starts with a focus statement, recommended time, and tip, so learners know exactly why they practise.</p>
+    </article>
+    <article class="info-card">
+        <p class="eyebrow">02 • Teacher-approved</p>
+        <h3>Analytics that stay private</h3>
+        <p>Exam attempts can be exported as CSV for teachers while students only see their own timeline.</p>
+    </article>
+    <article class="info-card">
+        <p class="eyebrow">03 • Legal ready</p>
+        <h3>Datenschutzerklärung inklusive</h3>
+        <p>We publish clear terms and privacy statements so your school admins can sign off quickly.</p>
+        <a class="btn ghost" href="{{ url_for('legal') }}">View legal pages</a>
+    </article>
 </section>
 {% endblock %}

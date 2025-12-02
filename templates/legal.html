@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Legal & Privacy • Orish{% endblock %}
+{% block content %}
+<section class="legal-hero card surface">
+    <div>
+        <p class="eyebrow">Transparent &amp; DSGVO-konform</p>
+        <h1>Legal notice &amp; Datenschutzerklärung</h1>
+        <p class="subtitle">This page explains how we run Orish responsibly so that learners and schools can rely on the platform. Last updated: {{ legal_updated }}.</p>
+    </div>
+    <div class="legal-badges">
+        <div class="badge">
+            <i data-lucide="shield-check"></i>
+            <span>Hosted in the EU</span>
+        </div>
+        <div class="badge">
+            <i data-lucide="file-check"></i>
+            <span>Teacher exports covered</span>
+        </div>
+        <div class="badge">
+            <i data-lucide="lock"></i>
+            <span>Privacy-first defaults</span>
+        </div>
+    </div>
+</section>
+
+{% for section in sections %}
+<section id="{{ section.id }}" class="legal-section card">
+    <p class="eyebrow">{{ section.eyebrow }}</p>
+    <h2>{{ section.title }}</h2>
+    <p>{{ section.intro }}</p>
+    <ul class="legal-list">
+        {% for item in section.clauses %}
+        <li>
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.body }}</p>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endfor %}
+{% endblock %}

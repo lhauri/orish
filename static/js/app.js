@@ -3,6 +3,16 @@ document.addEventListener('DOMContentLoaded', () => {
         window.lucide.createIcons();
     }
 
+    const menuToggle = document.querySelector('.menu-toggle');
+    const navLinks = document.getElementById('primary-nav');
+    if (menuToggle && navLinks) {
+        menuToggle.addEventListener('click', () => {
+            const isOpen = navLinks.dataset.open === 'true';
+            navLinks.dataset.open = (!isOpen).toString();
+            menuToggle.setAttribute('aria-expanded', (!isOpen).toString());
+        });
+    }
+
     const mindmap = document.getElementById('mindmap');
     if (mindmap) {
         const center = mindmap.querySelector('.node.center');
