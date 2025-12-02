@@ -155,6 +155,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    const requiresValidation = document.querySelectorAll('form[data-validate="true"]');
+    requiresValidation.forEach(form => {
+        const submitButton = form.querySelector('button[type="submit"]') || form.querySelector('button');
+        if (!submitButton) {
+            return;
+        }
+        const requiredFields = Array.from(form.querySelectorAll('[required]'));
+        const isFieldComplete = field => {
+            if (field.disabled) {
+                return true;
+            }
+            if (field.type === 'checkbox' || field.type === 'radio') {
+                return field.checked;
+            }
+            return Boolean(field.value && field.value.trim().length > 0);
+        };
+        const toggleState = () => {
+            const isValid = requiredFields.every(isFieldComplete);
+            submitButton.disabled = !isValid;
+            if (isValid) {
+                submitButton.classList.remove('disabled');
+            } else {
+                submitButton.classList.add('disabled');
+            }
+        };
+        form.addEventListener('input', toggleState);
+        form.addEventListener('change', toggleState);
+        toggleState();
+    });
+
     const mindmap = document.getElementById('mindmap');
     if (mindmap) {
         const center = mindmap.querySelector('.node.center');

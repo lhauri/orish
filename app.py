@@ -1856,6 +1856,12 @@ def create_exam():
     return redirect(url_for("exams"))
 
 
+@app.route("/exams/new")
+@admin_required
+def new_exam():
+    return render_template("exam_create.html", categories=CATEGORIES)
+
+
 @app.route("/admin/exams/generate", methods=["POST"])
 @admin_required
 def generate_exam_ai():

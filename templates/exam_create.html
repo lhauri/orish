@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Create Exam • Orish{% endblock %}
+{% block content %}
+<div class="card hero-panel">
+    <div>
+        <p class="tag">Exam studio</p>
+        <h1>Create a new exam</h1>
+        <p class="muted">Choose between a fully manual configuration or let the AI helper draft a starting point. You can always edit questions afterward.</p>
+    </div>
+    <div class="hero-actions">
+        <a class="btn ghost" href="{{ url_for('exams') }}">Back to exams</a>
+    </div>
+</div>
+<div class="card">
+    <div class="exam-form-row">
+    <section class="exam-form-card">
+        <p class="eyebrow">Manual setup</p>
+        <h2>Control every detail</h2>
+        <p class="muted">Perfect when you already know the mix of skills, tone, and number of questions you want to publish.</p>
+        <form method="post" action="{{ url_for('create_exam') }}" data-validate="true">
+            {{ csrf_field() }}
+            <label>Title<input name="title" required placeholder="e.g. B2 Grammar Sprint"></label>
+            <label>Description<textarea name="description" rows="2" placeholder="Optional short description for students."></textarea></label>
+            <label>Category
+                <select name="category" required>
+                    {% for key, meta in categories.items() %}
+                    <option value="{{ key }}">{{ meta.label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>Question count<input type="number" name="questions" min="3" max="15" value="5" required></label>
+            <label class="toggle">
+                <input type="checkbox" name="study_enabled" checked>
+                <span>Allow study attempts</span>
+            </label>
+            <label class="toggle">
+                <input type="checkbox" name="test_enabled" checked>
+                <span>Allow test attempts</span>
+            </label>
+            <button class="btn primary" disabled>Create exam</button>
+        </form>
+    </section>
+    <section class="exam-form-card">
+        <p class="eyebrow">AI co-creator</p>
+        <h2>Generate a draft</h2>
+        <p class="muted">Describe the topic, level, and tone you need. AI fills in the rest with editable questions.</p>
+        <form method="post" action="{{ url_for('generate_exam_ai') }}" data-validate="true">
+            {{ csrf_field() }}
+            <label>Prompt<textarea name="prompt" rows="6" required placeholder="Describe the skill focus, difficulty, and any special instructions."></textarea></label>
+            <button class="btn secondary" disabled>Generate with AI</button>
+        </form>
+    </section>
+    </div>
+</div>
+{% endblock %}

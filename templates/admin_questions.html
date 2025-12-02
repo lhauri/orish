@@ -19,10 +19,10 @@
     <div class="admin-body">
         <section class="admin-form">
             <h3>AI generate {{ categories[category].label }} questions</h3>
-            <form method="post" action="{{ url_for('generate_question_ai', category=category) }}">
+            <form method="post" action="{{ url_for('generate_question_ai', category=category) }}" data-validate="true">
                 {{ csrf_field() }}
-                <label>Prompt<textarea name="prompt" rows="3" placeholder="e.g. Focus on travel vocabulary, B1 level."></textarea></label>
-                <button class="btn secondary">Generate via AI</button>
+                <label>Prompt<textarea name="prompt" rows="3" required placeholder="e.g. Focus on travel vocabulary, B1 level."></textarea></label>
+                <button class="btn secondary" disabled>Generate via AI</button>
             </form>
         </section>
         <section class="admin-form">

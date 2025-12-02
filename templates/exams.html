@@ -118,35 +118,13 @@
 </div>
 {% if g.user['is_admin'] %}
 <div class="card">
-    <h3>Build or generate exams</h3>
-    <div class="exam-form-row">
-        <form class="exam-form-card" method="post" action="{{ url_for('create_exam') }}">
-            {{ csrf_field() }}
-            <p class="eyebrow">Manual setup</p>
-            <label>Title<input name="title" required placeholder="e.g. Business vocab check"></label>
-            <label>Description<textarea name="description" rows="2" placeholder="Shown to students"></textarea></label>
-            <label>Category
-                <select name="category">
-                    {% for key, meta in categories.items() %}
-                    <option value="{{ key }}">{{ meta.label }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label>Question count<input type="number" name="questions" value="5" min="3" max="15"></label>
-            <label class="toggle">
-                <input type="checkbox" name="study_enabled" checked> <span>Allow study attempts</span>
-            </label>
-            <label class="toggle">
-                <input type="checkbox" name="test_enabled" checked> <span>Allow test attempts</span>
-            </label>
-            <button class="btn primary">Publish</button>
-        </form>
-        <form class="exam-form-card" method="post" action="{{ url_for('generate_exam_ai') }}">
-            {{ csrf_field() }}
-            <p class="eyebrow">AI co-creator</p>
-            <label>Prompt<textarea name="prompt" rows="5" placeholder="Describe the skill, level, and tone. e.g. 'Create a B1 grammar drill on conditional sentences.'"></textarea></label>
-            <button class="btn secondary">Generate draft</button>
-        </form>
+    <div class="card-head">
+        <div>
+            <p class="eyebrow">Need a new assessment?</p>
+            <h3>Open the exam builder</h3>
+            <p class="muted">Decide between manual setup or the AI co-creator on the next screen. Drafts stay private until you publish.</p>
+        </div>
+        <a class="btn primary" href="{{ url_for('new_exam') }}">Create new exam</a>
     </div>
 </div>
 {% endif %}
