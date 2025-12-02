@@ -73,6 +73,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 submitButton.setAttribute('aria-busy', 'true');
                 submitButton.setAttribute('data-loading', 'true');
             }
+            if (form.dataset.finalSubmit === 'true') {
+                form.classList.add('show-correcting');
+            }
         });
     });
 

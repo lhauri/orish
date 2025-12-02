@@ -20,7 +20,7 @@
             <div class="progress-bar" style="width: {{ (current / total) * 100 }}%"></div>
         </div>
     </div>
-    <form method="post" class="quiz-form" data-enter-submit="true">
+    <form method="post" class="quiz-form" data-enter-submit="true" data-final-submit="{{ 'true' if current == total else 'false' }}">
         <p class="prompt">{{ question.prompt }}</p>
         {% if question.answer_type == 'text' %}
         <textarea class="text-answer" name="text_answer" placeholder="Type your answer..." required></textarea>
@@ -35,7 +35,10 @@
             {% endfor %}
         </div>
         {% endif %}
-        <button class="btn primary">Submit</button>
+        <div class="form-actions inline">
+            <button class="btn primary">Submit</button>
+            <span class="correcting-hint" aria-live="polite">Correcting, please wait…</span>
+        </div>
     </form>
 </div>
 {% endblock %}
