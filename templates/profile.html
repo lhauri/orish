@@ -93,7 +93,7 @@
                 <span>Theme</span>
                 <select name="theme_choice">
                     {% for key, label in theme_options.items() %}
-                    <option value="{{ key }}" {% if g.user['theme'] == key %}selected{% endif %}>{{ label }}</option>
+                    <option value="{{ key }}" {% if active_theme == key %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
             </label>

@@ -1097,6 +1097,11 @@ def load_logged_in_user():
         g.user = user
 
 
+@app.before_first_request
+def prepare_schema():
+    init_tables()
+
+
 @app.before_request
 def enforce_csrf_protection():
     if app.config.get("TESTING"):
@@ -1115,9 +1120,13 @@ def enforce_csrf_protection():
 def inject_globals():
     theme = "default"
     if hasattr(g, "user") and g.user:
-        user_theme = g.user.get("theme")
-        if user_theme in THEMES:
-            theme = user_theme
+        try:
+            if "theme" in g.user.keys():
+                user_theme = g.user["theme"]
+                if user_theme in THEMES:
+                    theme = user_theme
+        except Exception:
+            pass
     return {
         "current_year": datetime.utcnow().year,
         "csrf_token": generate_csrf_token,
@@ -1765,6 +1774,13 @@ def profile():
         "last_activity": last_activity,
     }
     role_label = "Teacher" if g.user["is_admin"] else "Student"
+    user_theme = "default"
+    try:
+        if "theme" in g.user.keys():
+            user_theme = g.user["theme"] or "default"
+    except Exception:
+        pass
+
     return render_template(
         "profile.html",
         results=results,
@@ -1773,6 +1789,7 @@ def profile():
         category_stats=category_stats,
         role_label=role_label,
         theme_options=THEMES,
+        active_theme=user_theme,
     )
 
 
