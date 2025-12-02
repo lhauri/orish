@@ -44,6 +44,11 @@ a {
     color: inherit;
 }
 
+.muted {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
 .top-bar {
     position: sticky;
     top: 0;
@@ -56,6 +61,18 @@ a {
     background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(18px);
     border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.nav-area {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
 }
 
 .logo {
@@ -75,6 +92,30 @@ a {
     color: var(--muted);
     letter-spacing: 0.08em;
     text-transform: uppercase;
+}
+
+.role-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.45rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    background: rgba(14, 165, 233, 0.12);
+    color: #0f4c81;
+}
+
+.role-pill[data-role="teacher"],
+.role-badge[data-role="teacher"] {
+    background: rgba(124, 58, 237, 0.14);
+    color: var(--primary-dark);
+}
+
+.role-pill[data-role="student"],
+.role-badge[data-role="student"] {
+    background: rgba(14, 165, 233, 0.14);
+    color: #075985;
 }
 
 .menu-toggle {
@@ -361,6 +402,98 @@ a {
 .info-card h3 {
     margin-top: 0.3rem;
     margin-bottom: 0.7rem;
+}
+
+.profile-hero {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    align-items: center;
+}
+
+.identity-card h1 {
+    margin-bottom: 0.2rem;
+}
+
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 999px;
+    padding: 0.4rem 0.9rem;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.identity-meta {
+    list-style: none;
+    padding: 0;
+    margin: 1.2rem 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+}
+
+.identity-meta li {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.meta-label {
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.insights-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.category-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+}
+
+.category-pill {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 18px;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.category-pill header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
+.profile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.profile-form form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-weight: 600;
+}
+
+.profile-feed .result-list {
+    margin-top: 1rem;
 }
 
 .legal-hero {
@@ -714,6 +847,17 @@ select,
 }
 
 @media (max-width: 900px) {
+    .brand {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .nav-area {
+        width: 100%;
+        justify-content: space-between;
+    }
+
     .menu-toggle {
         display: inline-flex;
     }

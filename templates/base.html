@@ -10,14 +10,23 @@
 <body class="layout">
     <div class="surface-veil" aria-hidden="true"></div>
     <header class="top-bar">
-        <a class="logo" href="{{ url_for('home') }}">
-            <span class="logo-mark">Orish</span>
-            <span class="logo-subtitle">English Skills Studio</span>
-        </a>
-        <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="primary-nav">
-            <i data-lucide="menu"></i>
-        </button>
-        <nav id="primary-nav" class="nav-links" data-open="false">
+        <div class="brand">
+            <a class="logo" href="{{ url_for('home') }}">
+                <span class="logo-mark">Orish</span>
+                <span class="logo-subtitle">English Skills Studio</span>
+            </a>
+            {% if g.user %}
+            <span class="role-pill" data-role="{{ 'teacher' if g.user['is_admin'] else 'student' }}">
+                <i data-lucide="{{ 'graduation-cap' if g.user['is_admin'] else 'user-round' }}"></i>
+                <span>{{ 'Teacher' if g.user['is_admin'] else 'Student' }} account</span>
+            </span>
+            {% endif %}
+        </div>
+        <div class="nav-area">
+            <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="primary-nav">
+                <i data-lucide="menu"></i>
+            </button>
+            <nav id="primary-nav" class="nav-links" data-open="false">
             <a href="{{ url_for('home') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'home' else 'false' }}">
                 <i data-lucide="home"></i>
                 <span>Home</span>
@@ -62,6 +71,7 @@
             </a>
             {% endif %}
         </nav>
+        </div>
     </header>
 
     <main class="content">

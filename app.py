@@ -381,15 +381,11 @@ LEGAL_SECTIONS = [
         "clauses": [
             {
                 "title": "Verantwortlich",
-                "body": "Orish Learning Collective • Militärstrasse 52 • 8004 Zürich • Schweiz",
+                "body": "Orish • Lorrainestrasse 5B • 3013 Bern • Schweiz",
             },
             {
                 "title": "E-Mail",
-                "body": "privacy@orish.app",
-            },
-            {
-                "title": "Vertretungsberechtigte Person",
-                "body": "Sarah Keller, Head of Learning Experience",
+                "body": "lha146043@stud.gibb.ch",
             },
         ],
     },
@@ -1046,10 +1042,36 @@ def dashboard():
     )
 
 
-@app.route("/profile")
+@app.route("/profile", methods=["GET", "POST"])
 @login_required
 def profile():
     db = get_db()
+    if request.method == "POST":
+        current_password = request.form.get("current_password", "")
+        new_password = request.form.get("new_password", "")
+        confirm_password = request.form.get("confirm_password", "")
+        if not current_password or not new_password or not confirm_password:
+            flash("Please complete all password fields.", "warning")
+        elif not check_password_hash(g.user["password_hash"], current_password):
+            flash("Current password is incorrect.", "danger")
+        elif len(new_password) < 8:
+            flash("New password must be at least 8 characters.", "warning")
+        elif new_password != confirm_password:
+            flash("New passwords do not match.", "warning")
+        else:
+            new_hash = generate_password_hash(new_password)
+            db.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (new_hash, g.user["id"]),
+            )
+            db.commit()
+            g.user = (
+                db.execute("SELECT * FROM users WHERE id = ?", (g.user["id"],))
+                .fetchone()
+            )
+            flash("Password updated successfully.", "success")
+            return redirect(url_for("profile"))
+
     results = db.execute(
         "SELECT * FROM results WHERE user_id = ? ORDER BY created_at DESC LIMIT 10",
         (g.user["id"],),
@@ -1065,7 +1087,71 @@ def profile():
         """,
         (g.user["id"],),
     ).fetchall()
-    return render_template("profile.html", results=results, exam_attempts=exam_attempts)
+
+    stats_row = db.execute(
+        """
+        SELECT
+            COUNT(*) AS attempts,
+            COALESCE(SUM(score), 0) AS total_score,
+            COALESCE(SUM(total), 0) AS total_possible
+        FROM results
+        WHERE user_id = ?
+        """,
+        (g.user["id"],),
+    ).fetchone()
+    exam_total = (
+        db.execute(
+            "SELECT COUNT(*) FROM exam_attempts WHERE user_id = ?",
+            (g.user["id"],),
+        ).fetchone()[0]
+    )
+    accuracy = 0
+    if stats_row["total_possible"]:
+        accuracy = round(
+            (stats_row["total_score"] / stats_row["total_possible"]) * 100, 1
+        )
+    last_activity = None
+    if results:
+        last_activity = results[0]["created_at"]
+    elif exam_attempts:
+        last_activity = exam_attempts[0]["created_at"]
+
+    category_rows = db.execute(
+        """
+        SELECT
+            category,
+            COUNT(*) AS attempts,
+            AVG(CASE WHEN total > 0 THEN CAST(score AS REAL) / total END) * 100 AS accuracy
+        FROM results
+        WHERE user_id = ?
+        GROUP BY category
+        """,
+        (g.user["id"],),
+    ).fetchall()
+    category_stats = [
+        {
+            "category": row["category"],
+            "label": CATEGORIES.get(row["category"], {}).get("label", row["category"]),
+            "attempts": row["attempts"],
+            "accuracy": round(row["accuracy"] or 0, 1) if row["accuracy"] else 0,
+        }
+        for row in category_rows
+    ]
+    profile_stats = {
+        "attempts": stats_row["attempts"] or 0,
+        "accuracy": accuracy,
+        "exam_attempts": exam_total,
+        "last_activity": last_activity,
+    }
+    role_label = "Teacher" if g.user["is_admin"] else "Student"
+    return render_template(
+        "profile.html",
+        results=results,
+        exam_attempts=exam_attempts,
+        profile_stats=profile_stats,
+        category_stats=category_stats,
+        role_label=role_label,
+    )
 
 
 @app.route("/quiz/select")

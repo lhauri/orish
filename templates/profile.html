@@ -1,18 +1,74 @@
 {% extends 'base.html' %}
 {% block title %}Profile • Orish{% endblock %}
 {% block content %}
-<section class="grid two">
-    <div class="card">
-        <h2>{{ g.user['username'] }}</h2>
-        <p class="muted">{{ g.user['email'] }}</p>
-        <div class="placeholder">
-            <p>Change password</p>
-            <button class="btn ghost" disabled>Coming soon</button>
+<section class="profile-hero card surface">
+    <div class="identity-card">
+        <span class="role-badge" data-role="{{ 'teacher' if g.user['is_admin'] else 'student' }}">
+            <i data-lucide="{{ 'graduation-cap' if g.user['is_admin'] else 'user-round' }}"></i>
+            {{ role_label }} workspace
+        </span>
+        <h1>{{ g.user['username'] }}</h1>
+        <p class="muted">{{ g.user['email'] }} • Last activity {{ profile_stats.last_activity or '—' }}</p>
+        <ul class="identity-meta">
+            <li>
+                <span class="meta-label">Quiz sessions</span>
+                <strong>{{ profile_stats.attempts }}</strong>
+            </li>
+            <li>
+                <span class="meta-label">Avg. accuracy</span>
+                <strong>{{ profile_stats.accuracy }}%</strong>
+            </li>
+            <li>
+                <span class="meta-label">Exam attempts</span>
+                <strong>{{ profile_stats.exam_attempts }}</strong>
+            </li>
+        </ul>
+    </div>
+    <div class="insights-card">
+        <p class="eyebrow">Category focus</p>
+        <div class="category-stats">
+            {% for stat in category_stats %}
+            <article class="category-pill">
+                <header>
+                    <span>{{ stat.label }}</span>
+                    <small>{{ stat.attempts }} sessions</small>
+                </header>
+                <strong>{{ stat.accuracy }}%</strong>
+                <p class="muted">Average accuracy</p>
+            </article>
+            {% else %}
+            <p>No quiz history yet. Start a session to see progress.</p>
+            {% endfor %}
         </div>
     </div>
-    <div class="card">
+</section>
+
+<section class="profile-grid">
+    <article class="card profile-form">
+        <h3>Update password</h3>
+        <p class="muted">Keep your account secure by choosing a long, memorable passphrase.</p>
+        <form method="post" class="form-grid">
+            <label>
+                <span>Current password</span>
+                <input type="password" name="current_password" autocomplete="current-password" required>
+            </label>
+            <label>
+                <span>New password</span>
+                <input type="password" name="new_password" autocomplete="new-password" minlength="8" required>
+            </label>
+            <label>
+                <span>Confirm new password</span>
+                <input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required>
+            </label>
+            <div class="form-actions">
+                <button class="btn primary" type="submit">Save new password</button>
+                <a class="btn ghost" href="{{ url_for('dashboard') }}">Back to dashboard</a>
+            </div>
+        </form>
+    </article>
+    <article class="card profile-feed">
         <h3>Recent quiz results</h3>
-        <ul class="result-list">
+        <ul class="result-list compact">
             {% for result in results %}
             <li>
                 <div>
@@ -25,10 +81,17 @@
             <li>No quizzes yet. Start one!</li>
             {% endfor %}
         </ul>
-    </div>
+    </article>
 </section>
-<section class="card">
-    <h3>Exam attempts</h3>
+
+<section class="card profile-table">
+    <div class="card-head">
+        <div>
+            <p class="eyebrow">Exam log</p>
+            <h3>Latest attempts</h3>
+        </div>
+        <a class="btn secondary" href="{{ url_for('exams') }}">Browse exams</a>
+    </div>
     <div class="table-scroll">
         <table class="attempt-table">
             <thead>
