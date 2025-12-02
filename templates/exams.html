@@ -12,11 +12,19 @@
     <div class="exam-grid">
         {% for exam in exams %}
         <div class="exam-card">
-            <p class="tag">{{ categories[exam.category].label }}</p>
+            <p class="tag">{{ exam.category_label }}</p>
             <h3>{{ exam.title }}</h3>
             <p>{{ exam.description or 'Focused practice with auto-tracking.' }}</p>
-            <small>{{ exam.questions }} questions • {{ categories[exam.category].label }}</small>
+            <small>{{ exam.questions }} questions • {{ exam.category_label }}</small>
+            {% if exam.has_questions %}
             <a class="btn primary" href="{{ url_for('take_exam', exam_id=exam.id) }}">Take exam</a>
+            {% else %}
+            <button class="btn disabled" disabled>Unavailable</button>
+            <p class="muted tiny">Needs {{ exam.missing_questions }} more question{{ 's' if exam.missing_questions != 1 else '' }}.</p>
+            {% if g.user['is_admin'] %}
+            <a class="btn ghost" href="{{ url_for('admin_questions', category=exam.category) }}">Add questions</a>
+            {% endif %}
+            {% endif %}
         </div>
         {% else %}
         <p>No active exams yet.</p>

@@ -49,6 +49,10 @@ a {
     font-size: 0.9rem;
 }
 
+.muted.tiny {
+    font-size: 0.8rem;
+}
+
 .top-bar {
     position: sticky;
     top: 0;
@@ -297,6 +301,13 @@ a {
 .btn.danger {
     background: #fee2e2;
     color: #991b1b;
+}
+
+.btn.disabled {
+    background: rgba(226, 232, 240, 0.9);
+    color: #94a3b8;
+    box-shadow: none;
+    cursor: not-allowed;
 }
 
 .btn:hover {

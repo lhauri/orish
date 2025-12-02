@@ -193,3 +193,19 @@ def test_admin_can_create_student_via_users_page(client, create_user):
         db = get_db()
         row = db.execute("SELECT is_admin FROM users WHERE username = ?", ("freshstudent",)).fetchone()
         assert row is not None and row["is_admin"] == 0
+
+
+def test_exam_without_enough_questions_is_blocked(client, create_user):
+    user_id = create_user()
+    with flask_app.app_context():
+        db = get_db()
+        exam_id = db.execute(
+            "INSERT INTO exams (title, description, category, questions, is_active) VALUES (?, ?, ?, ?, 1)",
+            ("Mega Exam", "Too big for the current bank", "vocabulary", 5),
+        ).lastrowid
+        db.commit()
+    with client.session_transaction() as session:
+        session["user_id"] = user_id
+    response = client.get(f"/exams/{exam_id}/take", follow_redirects=True)
+    html = response.get_data(as_text=True).lower()
+    assert "does not have any questions yet" in html or "needs 5 questions" in html

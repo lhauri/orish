@@ -1201,9 +1201,24 @@ def quiz_select():
 @login_required
 def exams():
     db = get_db()
-    exams = db.execute(
+    exam_rows = db.execute(
         "SELECT * FROM exams WHERE is_active = 1 ORDER BY id DESC"
     ).fetchall()
+    exams = []
+    for row in exam_rows:
+        data = dict(row)
+        category_meta = CATEGORIES.get(data["category"], {})
+        table = category_meta.get("table")
+        if table:
+            available = db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        else:
+            available = 0
+        data["category_label"] = category_meta.get("label", data["category"].title())
+        data["category_icon"] = category_meta.get("icon", "book")
+        data["has_questions"] = available >= data["questions"]
+        data["available_questions"] = available
+        data["missing_questions"] = max(0, data["questions"] - available)
+        exams.append(data)
     attempts = db.execute(
         """
         SELECT ea.*, e.title
@@ -1232,12 +1247,11 @@ def create_exam():
         flash("Please provide a valid title and category.", "warning")
         return redirect(url_for("exams"))
     questions = max(3, min(questions, 15))
+    db = get_db()
     available = (
-        get_db()
-        .execute(
+        db.execute(
             f"SELECT COUNT(*) FROM {CATEGORIES[category]['table']}",
-        )
-        .fetchone()[0]
+        ).fetchone()[0]
     )
     if available < questions:
         flash(
@@ -1246,7 +1260,6 @@ def create_exam():
             "warning",
         )
         return redirect(url_for("exams"))
-    db = get_db()
     db.execute(
         "INSERT INTO exams (title, description, category, questions) VALUES (?, ?, ?, ?)",
         (title, description, category, questions),
@@ -1266,16 +1279,13 @@ def generate_exam_ai():
         flash(str(exc), "danger")
         return redirect(url_for("exams"))
     db = get_db()
+    category = payload["category"]
     questions = max(3, min(payload["questions"], 15))
-    available = (
-        db.execute(
-            f"SELECT COUNT(*) FROM {CATEGORIES[payload['category']]['table']}",
-        )
-        .fetchone()[0]
-    )
+    table = CATEGORIES[category]["table"]
+    available = db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
     if available < questions:
         flash(
-            f"Not enough {CATEGORIES[payload['category']]['label'].lower()} questions to publish the AI exam. "
+            f"Not enough {CATEGORIES[category]['label'].lower()} questions to publish the AI exam. "
             "Add more questions first.",
             "warning",
         )
@@ -1285,7 +1295,7 @@ def generate_exam_ai():
         (
             payload["title"],
             payload["description"],
-            payload["category"],
+            category,
             questions,
         ),
     )
@@ -1476,11 +1486,21 @@ def start_quiz_session(category_key):
 
 
 def start_exam_session(exam_row):
-    questions = fetch_random_questions(
-        exam_row["category"], limit=exam_row["questions"]
-    )
-    if not questions:
-        raise ValueError("No questions available for this exam yet.")
+    required = exam_row["questions"]
+    try:
+        questions = fetch_random_questions(
+            exam_row["category"], limit=required
+        )
+    except ValueError:
+        raise ValueError(
+            "This exam does not have any questions yet. Ask your teacher to add them."
+        )
+    if len(questions) < required:
+        label = CATEGORIES.get(exam_row["category"], {}).get("label", "this category")
+        raise ValueError(
+            f"This exam needs {required} questions but only {len(questions)} "
+            f"exist in the {label.lower()} bank. Please add more questions."
+        )
     session["exam"] = {
         "exam_id": exam_row["id"],
         "title": exam_row["title"],
