@@ -31,13 +31,13 @@ from flask import (
     session,
     url_for,
 )
-from openai import OpenAI
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 from docx import Document
 from PyPDF2 import PdfReader
 import openpyxl
+import requests
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, "orish.db")
@@ -56,7 +56,6 @@ DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 DEEPSEEK_TIMEOUT = 30
 
 ALLOWED_UPLOADS = {".txt", ".md", ".pdf", ".docx", ".xlsx", ".csv"}
-_ai_client = None
 
 
 def evaluate_text_answer(prompt, reference, student_answer):
@@ -423,43 +422,42 @@ def _normalized_base_url():
     return base
 
 
-def get_ai_client():
-    global _ai_client
-    if not DEEPSEEK_API_KEY:
-        return None
-    if _ai_client is None:
-        try:
-            _ai_client = OpenAI(
-                api_key=DEEPSEEK_API_KEY,
-                base_url=_normalized_base_url(),
-            )
-        except Exception as exc:  # pragma: no cover - initialization issues
-            app.logger.warning("Could not initialize DeepSeek client: %s", exc)
-            return None
-    return _ai_client
-
-
 def _deepseek_chat(messages, temperature=0.4):
-    client = get_ai_client()
-    if not client:
+    if not DEEPSEEK_API_KEY:
         raise RuntimeError("AI key missing")
+    url = f"{_normalized_base_url()}/chat/completions"
+    payload = {
+        "model": DEEPSEEK_MODEL,
+        "messages": messages,
+        "temperature": temperature,
+    }
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json",
+    }
     try:
-        return client.chat.completions.create(
-            model=DEEPSEEK_MODEL,
-            messages=messages,
-            temperature=temperature,
+        response = requests.post(
+            url,
+            headers=headers,
+            json=payload,
+            timeout=DEEPSEEK_TIMEOUT,
         )
-    except Exception as exc:  # pragma: no cover - network / API issues
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as exc:  # pragma: no cover - network / API issues
         app.logger.warning("DeepSeek chat request failed: %s", exc)
         raise RuntimeError("AI request failed") from exc
 
 
 def _extract_chat_text(response):
-    if not response or not getattr(response, "choices", None):
+    if not response:
         return ""
-    first_choice = response.choices[0]
-    message = getattr(first_choice, "message", None)
-    content = getattr(message, "content", "") if message else ""
+    choices = response.get("choices") if isinstance(response, dict) else getattr(response, "choices", None)
+    if not choices:
+        return ""
+    first_choice = choices[0]
+    message = first_choice.get("message") if isinstance(first_choice, dict) else getattr(first_choice, "message", None)
+    content = message.get("content", "") if isinstance(message, dict) else getattr(message, "content", message) if message else ""
     if isinstance(content, str):
         return content.strip()
     if isinstance(content, list):
