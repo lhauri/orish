@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Manage Users • Orish{% endblock %}
+{% block content %}
+<section class="card">
+    <div class="card-head">
+        <div>
+            <p class="eyebrow">Teacher controls</p>
+            <h1>User roles</h1>
+            <p class="muted">Promote active learners to teacher accounts or switch them back to student access.</p>
+        </div>
+        <a class="btn secondary" href="{{ url_for('dashboard') }}">Back to dashboard</a>
+    </div>
+    <div class="table-scroll">
+        <table class="attempt-table user-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th class="actions-col">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>
+                        {% if user.is_admin %}
+                        <span class="role-tag teacher">Teacher</span>
+                        {% else %}
+                        <span class="role-tag student">Student</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="admin-actions">
+                            {% if not user.is_admin %}
+                            <form method="post">
+                                <input type="hidden" name="user_id" value="{{ user.id }}">
+                                <button class="btn primary" name="action" value="promote">Make teacher</button>
+                            </form>
+                            {% else %}
+                            <form method="post">
+                                <input type="hidden" name="user_id" value="{{ user.id }}">
+                                <button class="btn ghost" name="action" value="demote" {% if user.id == g.user['id'] %}disabled{% endif %}>Set as student</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

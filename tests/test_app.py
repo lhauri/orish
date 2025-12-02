@@ -5,6 +5,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from flask import url_for
 import pytest
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -103,3 +104,31 @@ def test_profile_password_change_requires_current_password(client, create_user):
         db = get_db()
         row = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         assert check_password_hash(row["password_hash"], "pass12345")
+
+
+def test_admin_can_promote_user(client, create_user):
+    admin_id = create_user(username="teacher", email="teacher@example.com", password="teachpass", is_admin=True)
+    learner_id = create_user(username="learner2", email="learner2@example.com", password="learnpass")
+    with client.session_transaction() as session:
+        session["user_id"] = admin_id
+    response = client.post(
+        "/admin/users",
+        data={"user_id": learner_id, "action": "promote"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert "is now a teacher" in response.get_data(as_text=True)
+    with flask_app.app_context():
+        db = get_db()
+        row = db.execute("SELECT is_admin FROM users WHERE id = ?", (learner_id,)).fetchone()
+        assert row["is_admin"] == 1
+
+
+def test_student_cannot_access_admin_users(client, create_user):
+    learner_id = create_user()
+    with client.session_transaction() as session:
+        session["user_id"] = learner_id
+    response = client.get("/admin/users")
+    assert response.status_code == 302
+    with flask_app.app_context():
+        assert response.headers["Location"].endswith(url_for("dashboard"))

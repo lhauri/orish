@@ -48,6 +48,12 @@
                 <span>Translation</span>
             </a>
             {% if g.user %}
+            {% if g.user['is_admin'] %}
+            <a href="{{ url_for('admin_users') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'admin_users' else 'false' }}">
+                <i data-lucide="users"></i>
+                <span>Manage users</span>
+            </a>
+            {% endif %}
             <a href="{{ url_for('dashboard') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['dashboard', 'results'] else 'false' }}">
                 <i data-lucide="activity"></i>
                 <span>Progress</span>

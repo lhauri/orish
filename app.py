@@ -1042,6 +1042,55 @@ def dashboard():
     )
 
 
+@app.route("/admin/users", methods=["GET", "POST"])
+@admin_required
+def admin_users():
+    db = get_db()
+    if request.method == "POST":
+        action = request.form.get("action", "promote")
+        try:
+            target_id = int(request.form.get("user_id"))
+        except (TypeError, ValueError):
+            flash("Invalid user selection.", "danger")
+            return redirect(url_for("admin_users"))
+        target = (
+            db.execute("SELECT * FROM users WHERE id = ?", (target_id,)).fetchone()
+        )
+        if not target:
+            flash("User not found.", "warning")
+            return redirect(url_for("admin_users"))
+        if action == "promote":
+            if target["is_admin"]:
+                flash(f"{target['username']} is already a teacher.", "info")
+            else:
+                db.execute(
+                    "UPDATE users SET is_admin = 1 WHERE id = ?",
+                    (target_id,),
+                )
+                db.commit()
+                flash(f"{target['username']} is now a teacher.", "success")
+        elif action == "demote":
+            if target_id == g.user["id"]:
+                flash("You cannot remove your own teacher role.", "warning")
+            elif not target["is_admin"]:
+                flash(f"{target['username']} is already a student.", "info")
+            else:
+                db.execute(
+                    "UPDATE users SET is_admin = 0 WHERE id = ?",
+                    (target_id,),
+                )
+                db.commit()
+                flash(f"{target['username']} was set to student.", "success")
+        else:
+            flash("Unknown action.", "warning")
+        return redirect(url_for("admin_users"))
+
+    users = db.execute(
+        "SELECT id, username, email, is_admin FROM users ORDER BY username ASC"
+    ).fetchall()
+    return render_template("admin_users.html", users=users)
+
+
 @app.route("/profile", methods=["GET", "POST"])
 @login_required
 def profile():

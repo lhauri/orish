@@ -48,17 +48,17 @@
         <h3>Update password</h3>
         <p class="muted">Keep your account secure by choosing a long, memorable passphrase.</p>
         <form method="post" class="form-grid">
-            <label>
+            <label class="password-field">
                 <span>Current password</span>
-                <input type="password" name="current_password" autocomplete="current-password" required>
+                <input class="password-input" type="password" name="current_password" autocomplete="current-password" required>
             </label>
-            <label>
+            <label class="password-field">
                 <span>New password</span>
-                <input type="password" name="new_password" autocomplete="new-password" minlength="8" required>
+                <input class="password-input" type="password" name="new_password" autocomplete="new-password" minlength="8" required>
             </label>
-            <label>
+            <label class="password-field">
                 <span>Confirm new password</span>
-                <input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required>
+                <input class="password-input" type="password" name="confirm_password" autocomplete="new-password" minlength="8" required>
             </label>
             <div class="form-actions">
                 <button class="btn primary" type="submit">Save new password</button>
