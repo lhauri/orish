@@ -836,6 +836,12 @@ select,
     color: #0369a1;
 }
 
+.confirm-note {
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+    color: #b45309;
+}
+
 .exam-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

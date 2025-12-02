@@ -990,11 +990,19 @@ def register():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        email = request.form.get("email", "").strip()
+        identifier = (
+            request.form.get("identifier")
+            or request.form.get("email", "")
+        ).strip()
         password = request.form.get("password", "")
 
         user = (
-            get_db().execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+            get_db()
+            .execute(
+                "SELECT * FROM users WHERE email = ? OR username = ?",
+                (identifier, identifier),
+            )
+            .fetchone()
         )
         if user and check_password_hash(user["password_hash"], password):
             session.clear()
@@ -1046,6 +1054,7 @@ def dashboard():
 @admin_required
 def admin_users():
     db = get_db()
+    confirm_user_id = None
     if request.method == "POST":
         action = request.form.get("action", "promote")
         try:
@@ -1069,7 +1078,8 @@ def admin_users():
                 )
                 db.commit()
                 flash(f"{target['username']} is now a teacher.", "success")
-        elif action == "demote":
+            return redirect(url_for("admin_users"))
+        if action == "demote":
             if target_id == g.user["id"]:
                 flash("You cannot remove your own teacher role.", "warning")
             elif not target["is_admin"]:
@@ -1081,14 +1091,36 @@ def admin_users():
                 )
                 db.commit()
                 flash(f"{target['username']} was set to student.", "success")
+            return redirect(url_for("admin_users"))
+        if action == "prepare_delete":
+            if target_id == g.user["id"]:
+                flash("You cannot delete your own account.", "warning")
+            else:
+                confirm_user_id = target_id
+                flash(
+                    f"Confirm deletion of {target['username']} to remove their data.",
+                    "warning",
+                )
+        elif action == "delete":
+            if target_id == g.user["id"]:
+                flash("You cannot delete your own account.", "warning")
+                return redirect(url_for("admin_users"))
+            db.execute("DELETE FROM results WHERE user_id = ?", (target_id,))
+            db.execute("DELETE FROM exam_attempts WHERE user_id = ?", (target_id,))
+            db.execute("DELETE FROM users WHERE id = ?", (target_id,))
+            db.commit()
+            flash(f"Deleted {target['username']} and their data.", "success")
+            return redirect(url_for("admin_users"))
         else:
             flash("Unknown action.", "warning")
-        return redirect(url_for("admin_users"))
+            return redirect(url_for("admin_users"))
 
     users = db.execute(
         "SELECT id, username, email, is_admin FROM users ORDER BY username ASC"
     ).fetchall()
-    return render_template("admin_users.html", users=users)
+    return render_template(
+        "admin_users.html", users=users, confirm_user_id=confirm_user_id
+    )
 
 
 @app.route("/profile", methods=["GET", "POST"])

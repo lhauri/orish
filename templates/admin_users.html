@@ -45,7 +45,24 @@
                                 <button class="btn ghost" name="action" value="demote" {% if user.id == g.user['id'] %}disabled{% endif %}>Set as student</button>
                             </form>
                             {% endif %}
+                            {% if user.id != g.user['id'] %}
+                                {% if confirm_user_id == user.id %}
+                                <form method="post">
+                                    <input type="hidden" name="user_id" value="{{ user.id }}">
+                                    <button class="btn danger" name="action" value="delete">Confirm delete</button>
+                                </form>
+                                <a class="btn ghost" href="{{ url_for('admin_users') }}">Cancel</a>
+                                {% else %}
+                                <form method="post">
+                                    <input type="hidden" name="user_id" value="{{ user.id }}">
+                                    <button class="btn danger ghost" name="action" value="prepare_delete">Delete</button>
+                                </form>
+                                {% endif %}
+                            {% endif %}
                         </div>
+                        {% if confirm_user_id == user.id %}
+                        <p class="confirm-note">Deleting {{ user.username }} removes all quiz and exam data.</p>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

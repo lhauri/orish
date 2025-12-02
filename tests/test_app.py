@@ -64,6 +64,17 @@ def test_legal_page_mentions_privacy_and_contact(client):
     assert "privacy@orish.app" in html
 
 
+def test_login_with_username(client, create_user):
+    user_id = create_user(username="learnerX", email="learnerx@example.com", password="combo123")
+    response = client.post(
+        "/login",
+        data={"identifier": "learnerX", "password": "combo123"},
+    )
+    assert response.status_code == 302
+    with client.session_transaction() as session:
+        assert session.get("user_id") == user_id
+
+
 def test_profile_password_change_flow(client, create_user):
     user_id = create_user(password="oldpass123")
     with client.session_transaction() as session:
@@ -132,3 +143,30 @@ def test_student_cannot_access_admin_users(client, create_user):
     assert response.status_code == 302
     with flask_app.app_context():
         assert response.headers["Location"].endswith(url_for("dashboard"))
+
+
+def test_admin_delete_user_requires_confirmation(client, create_user):
+    admin_id = create_user(username="teacher2", email="teacher2@example.com", password="teachpass", is_admin=True)
+    learner_id = create_user(username="to-delete", email="todelete@example.com", password="delete123")
+    with client.session_transaction() as session:
+        session["user_id"] = admin_id
+    response = client.post(
+        "/admin/users",
+        data={"user_id": learner_id, "action": "prepare_delete"},
+    )
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Confirm delete" in html
+    with flask_app.app_context():
+        db = get_db()
+        assert db.execute("SELECT 1 FROM users WHERE id = ?", (learner_id,)).fetchone()
+
+    response = client.post(
+        "/admin/users",
+        data={"user_id": learner_id, "action": "delete"},
+        follow_redirects=True,
+    )
+    assert "Deleted to-delete" in response.get_data(as_text=True)
+    with flask_app.app_context():
+        db = get_db()
+        assert db.execute("SELECT 1 FROM users WHERE id = ?", (learner_id,)).fetchone() is None
