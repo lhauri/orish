@@ -1072,6 +1072,15 @@ def count_general_questions():
     return totals
 
 
+def exam_has_assignments(exam_id):
+    db = get_db()
+    row = db.execute(
+        "SELECT COUNT(*) AS assigned FROM exam_assignments WHERE exam_id = ?",
+        (exam_id,),
+    ).fetchone()
+    return bool(row and row["assigned"])
+
+
 def get_exam_assignment(exam_id, user_id):
     if not user_id:
         return None
@@ -1090,6 +1099,8 @@ def user_can_take_exam(exam_row, user, mode):
     if not user:
         return False
     if user["is_admin"]:
+        return True
+    if not exam_has_assignments(exam_row["id"]):
         return True
     assignment = get_exam_assignment(exam_row["id"], user["id"])
     if not assignment:
@@ -1512,15 +1523,16 @@ def exams():
     general_counts = count_general_questions()
     if g.user["is_admin"]:
         exam_rows = db.execute(
-            "SELECT *, 1 AS can_study, 1 AS can_test FROM exams ORDER BY id DESC"
+            "SELECT e.*, 1 AS can_study, 1 AS can_test FROM exams e ORDER BY e.id DESC"
         ).fetchall()
     else:
         exam_rows = db.execute(
             """
             SELECT e.*, ea.can_study, ea.can_test
             FROM exams e
-            JOIN exam_assignments ea ON ea.exam_id = e.id
-            WHERE ea.user_id = ? AND e.is_active = 1
+            LEFT JOIN exam_assignments ea
+                ON ea.exam_id = e.id AND ea.user_id = ?
+            WHERE e.is_active = 1
             ORDER BY e.id DESC
             """,
             (g.user["id"],),
@@ -1549,8 +1561,21 @@ def exams():
         data["specific_questions"] = specific_total
         data["assigned_count"] = assigned_count
         data["missing_questions"] = max(0, data["questions"] - available)
-        data["can_study"] = bool(row["can_study"])
-        data["can_test"] = bool(row["can_test"])
+        if g.user["is_admin"]:
+            data["can_study"] = True
+            data["can_test"] = True
+        else:
+            assignment_exists = row["can_study"] is not None or row["can_test"] is not None
+            open_to_all = assigned_count == 0
+            if not assignment_exists and not open_to_all:
+                # Teachers restricted this exam; skip if not assigned.
+                continue
+            data["can_study"] = (
+                bool(row["can_study"]) if assignment_exists else open_to_all
+            )
+            data["can_test"] = (
+                bool(row["can_test"]) if assignment_exists else open_to_all
+            )
         exams.append(data)
     attempts = db.execute(
         """

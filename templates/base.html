@@ -28,64 +28,101 @@
                 <i data-lucide="menu"></i>
             </button>
             <nav id="primary-nav" class="nav-links" data-open="false">
-            <a href="{{ url_for('home') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'home' else 'false' }}">
-                <i data-lucide="home"></i>
-                <span>Home</span>
-            </a>
-            <a href="{{ url_for('quiz', category='vocabulary') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'quiz' and request.view_args and request.view_args.get('category') == 'vocabulary' else 'false' }}">
-                <i data-lucide="type"></i>
-                <span>Vocabulary</span>
-            </a>
-            <a href="{{ url_for('quiz', category='grammar') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'quiz' and request.view_args and request.view_args.get('category') == 'grammar' else 'false' }}">
-                <i data-lucide="book"></i>
-                <span>Grammar</span>
-            </a>
-            <a href="{{ url_for('quiz', category='translation') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'quiz' and request.view_args and request.view_args.get('category') == 'translation' else 'false' }}">
-                <i data-lucide="languages"></i>
-                <span>Translation</span>
-            </a>
-            {% if g.user %}
-            {% if g.user['is_admin'] %}
-            <a href="{{ url_for('admin_questions') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'admin_questions' else 'false' }}">
-                <i data-lucide="library"></i>
-                <span>Question bank</span>
-            </a>
-            <a href="{{ url_for('exams') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['exams', 'create_exam'] else 'false' }}">
-                <i data-lucide="trophy"></i>
-                <span>Exam studio</span>
-            </a>
-            <a href="{{ url_for('admin_users') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'admin_users' else 'false' }}">
-                <i data-lucide="users"></i>
-                <span>Manage users</span>
-            </a>
-            {% endif %}
-            <a href="{{ url_for('dashboard') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['dashboard', 'results'] else 'false' }}">
-                <i data-lucide="activity"></i>
-                <span>Progress</span>
-            </a>
-            <a href="{{ url_for('study_packs') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['study_packs', 'study_group'] else 'false' }}">
-                <i data-lucide="layers"></i>
-                <span>Study packs</span>
-            </a>
-            <a href="{{ url_for('profile') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'profile' else 'false' }}">
-                <i data-lucide="user"></i>
-                <span>Profile</span>
-            </a>
-            <a href="{{ url_for('logout') }}" class="nav-item">
-                <i data-lucide="log-out"></i>
-                <span>Logout</span>
-            </a>
-            {% else %}
-            <a href="{{ url_for('login') }}" class="nav-item pill">
-                <i data-lucide="log-in"></i>
-                <span>Login</span>
-            </a>
-            <a href="{{ url_for('register') }}" class="nav-item accent">
-                <i data-lucide="user-plus"></i>
-                <span>Join</span>
-            </a>
-            {% endif %}
-        </nav>
+                {% set endpoint = request.endpoint or '' %}
+                {% set view_args = request.view_args or {} %}
+                {% set active_category = view_args.get('category') if view_args else '' %}
+                {% set practice_active = endpoint in ['quiz', 'quiz_select', 'study_packs', 'study_group'] %}
+                {% set exam_active = endpoint in [
+                    'exams', 'take_exam', 'exam_result', 'manage_exam',
+                    'update_exam_settings', 'add_exam_question', 'add_exam_questions_ai',
+                    'assign_exam_to_student', 'delete_exam_assignment'
+                ] %}
+                {% set admin_menu_active = endpoint in [
+                    'admin_questions', 'admin_users', 'admin_exam_attempts',
+                    'create_question_group', 'assign_question_to_group',
+                    'remove_question_from_group', 'share_question_group',
+                    'revoke_question_group_assignment'
+                ] %}
+                <a href="{{ url_for('home') }}" class="nav-item" data-active="{{ 'true' if endpoint == 'home' else 'false' }}">
+                    <i data-lucide="home"></i>
+                    <span>Home</span>
+                </a>
+                {% if g.user %}
+                <a href="{{ url_for('dashboard') }}" class="nav-item" data-active="{{ 'true' if endpoint in ['dashboard', 'results'] else 'false' }}">
+                    <i data-lucide="activity"></i>
+                    <span>Dashboard</span>
+                </a>
+                <div class="nav-dropdown" data-open="false">
+                    <button type="button" class="nav-item dropdown-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="practice-menu" data-active="{{ 'true' if practice_active else 'false' }}">
+                        <i data-lucide="sparkles"></i>
+                        <span>Practice</span>
+                        <i data-lucide="chevron-down" class="chevron"></i>
+                    </button>
+                    <div class="dropdown-panel" id="practice-menu" role="menu">
+                        <a href="{{ url_for('quiz', category='vocabulary') }}" class="dropdown-item" data-active="{{ 'true' if endpoint == 'quiz' and active_category == 'vocabulary' else 'false' }}">
+                            <i data-lucide="type"></i>
+                            <span>Vocabulary</span>
+                        </a>
+                        <a href="{{ url_for('quiz', category='grammar') }}" class="dropdown-item" data-active="{{ 'true' if endpoint == 'quiz' and active_category == 'grammar' else 'false' }}">
+                            <i data-lucide="book"></i>
+                            <span>Grammar</span>
+                        </a>
+                        <a href="{{ url_for('quiz', category='translation') }}" class="dropdown-item" data-active="{{ 'true' if endpoint == 'quiz' and active_category == 'translation' else 'false' }}">
+                            <i data-lucide="languages"></i>
+                            <span>Translation</span>
+                        </a>
+                        <a href="{{ url_for('study_packs') }}" class="dropdown-item" data-active="{{ 'true' if endpoint in ['study_packs', 'study_group'] else 'false' }}">
+                            <i data-lucide="layers"></i>
+                            <span>Study packs</span>
+                        </a>
+                    </div>
+                </div>
+                <a href="{{ url_for('exams') }}" class="nav-item" data-active="{{ 'true' if exam_active else 'false' }}">
+                    <i data-lucide="trophy"></i>
+                    <span>Exams</span>
+                </a>
+                {% if g.user['is_admin'] %}
+                <div class="nav-dropdown" data-open="false">
+                    <button type="button" class="nav-item dropdown-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="teacher-menu" data-active="{{ 'true' if admin_menu_active else 'false' }}">
+                        <i data-lucide="layout-dashboard"></i>
+                        <span>Teacher</span>
+                        <i data-lucide="chevron-down" class="chevron"></i>
+                    </button>
+                    <div class="dropdown-panel" id="teacher-menu" role="menu">
+                        <a href="{{ url_for('admin_questions') }}" class="dropdown-item" data-active="{{ 'true' if endpoint == 'admin_questions' else 'false' }}">
+                            <i data-lucide="library"></i>
+                            <span>Question bank</span>
+                        </a>
+                        <a href="{{ url_for('admin_exam_attempts') }}" class="dropdown-item" data-active="{{ 'true' if endpoint == 'admin_exam_attempts' else 'false' }}">
+                            <i data-lucide="monitor-smartphone"></i>
+                            <span>Exam attempts</span>
+                        </a>
+                        <a href="{{ url_for('admin_users') }}" class="dropdown-item" data-active="{{ 'true' if endpoint == 'admin_users' else 'false' }}">
+                            <i data-lucide="users"></i>
+                            <span>Manage users</span>
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+                <a href="{{ url_for('profile') }}" class="nav-item" data-active="{{ 'true' if endpoint == 'profile' else 'false' }}">
+                    <i data-lucide="user"></i>
+                    <span>Profile</span>
+                </a>
+                <a href="{{ url_for('logout') }}" class="nav-item">
+                    <i data-lucide="log-out"></i>
+                    <span>Logout</span>
+                </a>
+                {% else %}
+                <a href="{{ url_for('login') }}" class="nav-item pill">
+                    <i data-lucide="log-in"></i>
+                    <span>Login</span>
+                </a>
+                <a href="{{ url_for('register') }}" class="nav-item accent">
+                    <i data-lucide="user-plus"></i>
+                    <span>Join</span>
+                </a>
+                {% endif %}
+            </nav>
         </div>
     </header>
 
