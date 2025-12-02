@@ -1,24 +1,30 @@
 {% extends 'base.html' %}
-{% block title %}Choose Quiz • Orish{% endblock %}
+{% block title %}Start Practicing • Orish{% endblock %}
 {% block content %}
-<div class="card">
-    <h2>Pick a category</h2>
-    <p class="muted">Each quiz gives 5 carefully selected questions.</p>
-    <div class="card-grid">
+<section class="card">
+    <p class="tag">Focus areas</p>
+    <h2>Choose one skill at a time</h2>
+    <div class="category-grid">
         {% for key, meta in categories.items() %}
-        <div class="mini-card">
-            <i data-lucide="{{ meta.icon }}"></i>
-            <h3>{{ meta.label }}</h3>
+        <article class="category-card">
+            <header>
+                <i data-lucide="{{ meta.icon }}"></i>
+                <h3>{{ meta.label }}</h3>
+            </header>
             <p>
                 {% if key == 'translation' %}
-                Write short translations and receive AI corrections.
+                Submit short answers and get instant corrections.
+                {% elif key == 'reading' %}
+                Bite-sized passages with comprehension checks.
+                {% elif key == 'grammar' %}
+                Fill-in-the-blank drills to sharpen sentence flow.
                 {% else %}
-                Sharpen your {{ meta.label.lower() }} skills.
+                Match words with definitions and usage.
                 {% endif %}
             </p>
-            <a class="btn primary" href="{{ url_for('quiz', category=key) }}">Start quiz</a>
-        </div>
+            <a class="btn primary" href="{{ url_for('quiz', category=key) }}">Practice {{ meta.label.lower() }}</a>
+        </article>
         {% endfor %}
     </div>
-</div>
+</section>
 {% endblock %}

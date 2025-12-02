@@ -1,18 +1,22 @@
 {% extends 'base.html' %}
-{% block title %}Dashboard • Orish{% endblock %}
+{% block title %}Overview • Orish{% endblock %}
 {% block content %}
-<section class="grid two">
+<section class="grid two slim">
     <div class="card highlight">
-        <p class="tag">Hello</p>
-        <h2>{{ g.user['username'] }}, ready to learn?</h2>
-        <p>Review your progress or dive straight into a quiz.</p>
-        <a href="{{ url_for('quiz_select') }}" class="btn primary">Start a quiz</a>
+        <p class="tag">Welcome back</p>
+        <h2>{{ g.user['username'] }}</h2>
+        <p>Pick a focus and keep your streak going.</p>
+        <div class="quick-links">
+            <a href="{{ url_for('quiz', category='vocabulary') }}" class="btn primary">Vocabulary</a>
+            <a href="{{ url_for('quiz', category='grammar') }}" class="btn primary">Grammar</a>
+            <a href="{{ url_for('quiz', category='reading') }}" class="btn primary">Reading</a>
+            <a href="{{ url_for('quiz', category='translation') }}" class="btn primary">Translation</a>
+        </div>
     </div>
     <div class="card stats">
-        <p>Total quizzes</p>
-        <h3>{{ total_quizzes }}</h3>
-        <p class="muted">Best scores per mode</p>
-        <div class="stat-grid">
+        <p class="tag">Progress snapshot</p>
+        <h3>{{ total_quizzes }} Quizzes</h3>
+        <div class="stat-grid tight">
             {% for key, meta in categories.items() %}
             <div class="stat-chip">
                 <i data-lucide="{{ meta.icon }}"></i>
@@ -25,34 +29,20 @@
         </div>
     </div>
 </section>
-<section class="card highlight">
-    <p class="tag">Exam hub</p>
-    <div class="grid two">
-        <div>
-            <h3>Need a full mock exam?</h3>
-            <p>Orish now tracks full exam attempts and shares detailed insight with your teacher.</p>
-            <a class="btn secondary" href="{{ url_for('exams') }}">Open exams</a>
-        </div>
-        <div>
-            <ul class="hero-list">
-                <li><i data-lucide="award"></i>Teacher-ready breakdown</li>
-                <li><i data-lucide="sparkles"></i>AI-checked translations</li>
-                <li><i data-lucide="shield-check"></i>Error handling & autosave</li>
-            </ul>
-        </div>
-    </div>
-</section>
 <section class="card">
-    <h3>Choose training</h3>
-    <div class="card-grid">
-        {% for key, meta in categories.items() %}
-        <div class="mini-card">
-            <i data-lucide="{{ meta.icon }}"></i>
-            <h4>{{ meta.label }}</h4>
-            <p>Quick curated set of 5 questions.</p>
-            <a class="btn ghost" href="{{ url_for('quiz', category=key) }}">Start</a>
-        </div>
+    <h3>Recent quiz results</h3>
+    <ul class="result-list compact">
+        {% for result in results %}
+        <li>
+            <div>
+                <strong>{{ result.category|capitalize }}</strong>
+                <p class="muted">{{ result.created_at }}</p>
+            </div>
+            <span>{{ result.score }} / {{ result.total }}</span>
+        </li>
+        {% else %}
+        <li>No quizzes yet. Start with vocabulary!</li>
         {% endfor %}
-    </div>
+    </ul>
 </section>
 {% endblock %}

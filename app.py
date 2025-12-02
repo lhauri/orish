@@ -910,12 +910,17 @@ def dashboard():
             (g.user["id"], key),
         ).fetchone()[0]
         best_scores[key] = best or 0
+    recent_results = db.execute(
+        "SELECT * FROM results WHERE user_id = ? ORDER BY created_at DESC LIMIT 5",
+        (g.user["id"],),
+    ).fetchall()
 
     return render_template(
         "dashboard.html",
         total_quizzes=total_quizzes,
         best_scores=best_scores,
         categories=CATEGORIES,
+        results=recent_results,
     )
 
 

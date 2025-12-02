@@ -1,41 +1,56 @@
 {% extends 'base.html' %}
-{% block title %}Orish • English Prep{% endblock %}
+{% block title %}Orish • English Practice{% endblock %}
 {% block content %}
-<section class="hero">
+<section class="hero stacked">
     <div class="hero-text">
-        <p class="tag">Modern learning</p>
-        <h1>Study smart for your English tests.</h1>
-        <p class="subtitle">Orish keeps vocabulary, grammar, and reading drills in one calm workspace so you can focus.</p>
+        <p class="tag">Practice made simple</p>
+        <h1>Pick a skill and start learning.</h1>
+        <p class="subtitle">Each module gives you five curated prompts, instant feedback, and gentle tracking of your progress.</p>
         <div class="hero-actions">
             {% if g.user %}
-            <a href="{{ url_for('dashboard') }}" class="btn primary">Go to dashboard</a>
+            <a href="{{ url_for('dashboard') }}" class="btn primary">View my progress</a>
             {% else %}
-            <a href="{{ url_for('register') }}" class="btn primary">Get started</a>
-            <a href="{{ url_for('login') }}" class="btn secondary">Login</a>
+            <a href="{{ url_for('register') }}" class="btn primary">Create an account</a>
+            <a href="{{ url_for('login') }}" class="btn ghost">Log in</a>
             {% endif %}
         </div>
     </div>
-    <div class="hero-card">
-        <p>Practice modes</p>
-        <ul>
-            <li><i data-lucide="type"></i> Vocabulary</li>
-            <li><i data-lucide="book"></i> Grammar</li>
-            <li><i data-lucide="file-text"></i> Reading</li>
-            <li><i data-lucide="languages"></i> Translation + AI</li>
-        </ul>
-    </div>
 </section>
-<section class="card highlight">
-    <p class="tag">What's new</p>
-    <div class="grid two">
-        <div>
-            <h3>AI-assisted translations</h3>
-            <p>Open responses are reviewed by DeepSeek so you receive instant coaching language.</p>
-        </div>
-        <div>
-            <h3>Exam-ready tracking</h3>
-            <p>Full exam attempts are saved for teachers, highlighting right vs. wrong answers automatically.</p>
-        </div>
+<section class="card">
+    <p class="tag">Choose a focus</p>
+    <div class="category-grid">
+        <article class="category-card vocab">
+            <header>
+                <i data-lucide="type"></i>
+                <h3>Vocabulary</h3>
+            </header>
+            <p>Match words to meanings. Great for warming up before class.</p>
+            <a class="btn primary" href="{{ url_for('quiz', category='vocabulary') }}">Start vocabulary</a>
+        </article>
+        <article class="category-card grammar">
+            <header>
+                <i data-lucide="book"></i>
+                <h3>Grammar</h3>
+            </header>
+            <p>Fill the blanks and polish sentence patterns.</p>
+            <a class="btn primary" href="{{ url_for('quiz', category='grammar') }}">Start grammar</a>
+        </article>
+        <article class="category-card reading">
+            <header>
+                <i data-lucide="file-text"></i>
+                <h3>Reading</h3>
+            </header>
+            <p>Short passages with comprehension questions.</p>
+            <a class="btn primary" href="{{ url_for('quiz', category='reading') }}">Start reading</a>
+        </article>
+        <article class="category-card translation">
+            <header>
+                <i data-lucide="languages"></i>
+                <h3>Translation</h3>
+            </header>
+            <p>Write short answers. AI coaching is included when available.</p>
+            <a class="btn primary" href="{{ url_for('quiz', category='translation') }}">Start translation</a>
+        </article>
     </div>
 </section>
 {% endblock %}

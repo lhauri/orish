@@ -14,40 +14,29 @@
             <a href="{{ url_for('home') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'home' else 'false' }}">
                 <i data-lucide="home"></i> Home
             </a>
+            <a href="{{ url_for('quiz', category='vocabulary') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'quiz' and request.view_args and request.view_args.get('category') == 'vocabulary' else 'false' }}">
+                <i data-lucide="type"></i> Vocabulary
+            </a>
+            <a href="{{ url_for('quiz', category='grammar') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'quiz' and request.view_args and request.view_args.get('category') == 'grammar' else 'false' }}">
+                <i data-lucide="book"></i> Grammar
+            </a>
+            <a href="{{ url_for('quiz', category='reading') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'quiz' and request.view_args and request.view_args.get('category') == 'reading' else 'false' }}">
+                <i data-lucide="file-text"></i> Reading
+            </a>
+            <a href="{{ url_for('quiz', category='translation') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'quiz' and request.view_args and request.view_args.get('category') == 'translation' else 'false' }}">
+                <i data-lucide="languages"></i> Translation
+            </a>
             {% if g.user %}
-            <a href="{{ url_for('dashboard') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'dashboard' else 'false' }}">
-                <i data-lucide="activity"></i> Dashboard
+            <a href="{{ url_for('dashboard') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['dashboard', 'profile', 'results'] else 'false' }}">
+                <i data-lucide="activity"></i> Progress
             </a>
-            <a href="{{ url_for('quiz_select') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['quiz', 'quiz_select'] else 'false' }}">
-                <i data-lucide="book"></i> Quizzes
-            </a>
-            <a href="{{ url_for('exams') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['exams', 'take_exam', 'exam_result'] else 'false' }}">
-                <i data-lucide="award"></i> Exams
-            </a>
-            <a href="{{ url_for('analyze') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'analyze' else 'false' }}">
-                <i data-lucide="file-search"></i> Analyze
-            </a>
-            <a href="{{ url_for('mindmap') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'mindmap' else 'false' }}">
-                <i data-lucide="brain"></i> Mind Map
-            </a>
-            <a href="{{ url_for('profile') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'profile' else 'false' }}">
+            <a href="{{ url_for('profile') }}" class="nav-item">
                 <i data-lucide="user"></i> Profile
             </a>
-            {% if g.user['is_admin'] %}
-            <a href="{{ url_for('admin_questions') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['admin_questions', 'edit_question'] else 'false' }}">
-                <i data-lucide="settings"></i> Question bank
-            </a>
-            <a href="{{ url_for('admin_exam_attempts') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['admin_exam_attempts', 'admin_exam_attempt_detail'] else 'false' }}">
-                <i data-lucide="activity"></i> Exam monitor
-            </a>
-            {% endif %}
             <a href="{{ url_for('logout') }}" class="nav-item">
                 <i data-lucide="log-out"></i> Logout
             </a>
             {% else %}
-            <a href="{{ url_for('mindmap') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'mindmap' else 'false' }}">
-                <i data-lucide="brain"></i> Mind Map
-            </a>
             <a href="{{ url_for('login') }}" class="nav-item">
                 <i data-lucide="log-in"></i> Login
             </a>
