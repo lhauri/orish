@@ -25,6 +25,7 @@ from flask import (
     flash,
     g,
     has_request_context,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -1301,9 +1302,9 @@ def dashboard():
 @admin_required
 def admin_users():
     db = get_db()
-    confirm_user_id = None
     if request.method == "POST":
         action = request.form.get("action", "promote")
+        is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
         if action == "create":
             username = request.form.get("username", "").strip()
             email = request.form.get("email", "").strip()
@@ -1330,59 +1331,94 @@ def admin_users():
         try:
             target_id = int(request.form.get("user_id"))
         except (TypeError, ValueError):
-            flash("Invalid user selection.", "danger")
+            message = "Invalid user selection."
+            if is_ajax:
+                return jsonify({"status": "error", "message": message}), 400
+            flash(message, "danger")
             return redirect(url_for("admin_users"))
         target = (
             db.execute("SELECT * FROM users WHERE id = ?", (target_id,)).fetchone()
         )
         if not target:
-            flash("User not found.", "warning")
+            message = "User not found."
+            if is_ajax:
+                return jsonify({"status": "error", "message": message}), 404
+            flash(message, "warning")
             return redirect(url_for("admin_users"))
+
+        def ajax_response(message, status="ok", extra=None, status_code=200):
+            payload = {"status": status, "message": message, "user_id": target_id}
+            if extra:
+                payload.update(extra)
+            response = jsonify(payload)
+            response.status_code = status_code
+            return response
+
         if action == "promote":
             if target["is_admin"]:
-                flash(f"{target['username']} is already a teacher.", "info")
+                message = f"{target['username']} is already a teacher."
+                if is_ajax:
+                    return ajax_response(message, status="info")
+                flash(message, "info")
             else:
                 db.execute(
                     "UPDATE users SET is_admin = 1 WHERE id = ?",
                     (target_id,),
                 )
                 db.commit()
-                flash(f"{target['username']} is now a teacher.", "success")
+                message = f"{target['username']} is now a teacher."
+                if is_ajax:
+                    return ajax_response(message, extra={"role": "teacher"})
+                flash(message, "success")
             return redirect(url_for("admin_users"))
         if action == "demote":
             if target_id == g.user["id"]:
-                flash("You cannot remove your own teacher role.", "warning")
+                message = "You cannot remove your own teacher role."
+                if is_ajax:
+                    return ajax_response(message, status="error", status_code=400)
+                flash(message, "warning")
             elif not target["is_admin"]:
-                flash(f"{target['username']} is already a student.", "info")
+                message = f"{target['username']} is already a student."
+                if is_ajax:
+                    return ajax_response(message, status="info")
+                flash(message, "info")
             else:
                 db.execute(
                     "UPDATE users SET is_admin = 0 WHERE id = ?",
                     (target_id,),
                 )
                 db.commit()
-                flash(f"{target['username']} was set to student.", "success")
+                message = f"{target['username']} was set to student."
+                if is_ajax:
+                    return ajax_response(message, extra={"role": "student"})
+                flash(message, "success")
             return redirect(url_for("admin_users"))
-        if action == "prepare_delete":
+        if action == "delete":
             if target_id == g.user["id"]:
-                flash("You cannot delete your own account.", "warning")
-            else:
-                confirm_user_id = target_id
-                flash(
-                    f"Confirm deletion of {target['username']} to remove their data.",
-                    "warning",
-                )
-        elif action == "delete":
-            if target_id == g.user["id"]:
-                flash("You cannot delete your own account.", "warning")
+                message = "You cannot delete your own account."
+                if is_ajax:
+                    return ajax_response(message, status="error", status_code=400)
+                flash(message, "warning")
                 return redirect(url_for("admin_users"))
             db.execute("DELETE FROM results WHERE user_id = ?", (target_id,))
             db.execute("DELETE FROM exam_attempts WHERE user_id = ?", (target_id,))
             db.execute("DELETE FROM users WHERE id = ?", (target_id,))
             db.commit()
-            flash(f"Deleted {target['username']} and their data.", "success")
+            message = f"Deleted {target['username']} and their data."
+            if is_ajax:
+                return ajax_response(message, extra={"role": "teacher" if target["is_admin"] else "student"})
+            flash(message, "success")
             return redirect(url_for("admin_users"))
+        if action == "prepare_delete":
+            message = f"Confirm delete {target['username']}."
+            if is_ajax:
+                return ajax_response(message, status="info")
+            return message, 200
         else:
-            flash("Unknown action.", "warning")
+            message = "Unknown action."
+            if is_ajax:
+                return ajax_response(message, status="error", status_code=400)
+            flash(message, "warning")
             return redirect(url_for("admin_users"))
 
     users = db.execute(
@@ -1394,7 +1430,6 @@ def admin_users():
         "admin_users.html",
         teachers=teacher_rows,
         students=student_rows,
-        confirm_user_id=confirm_user_id,
     )
 
 
@@ -1403,29 +1438,56 @@ def admin_users():
 def profile():
     db = get_db()
     if request.method == "POST":
-        current_password = request.form.get("current_password", "")
-        new_password = request.form.get("new_password", "")
-        confirm_password = request.form.get("confirm_password", "")
-        if not current_password or not new_password or not confirm_password:
-            flash("Please complete all password fields.", "warning")
-        elif not check_password_hash(g.user["password_hash"], current_password):
-            flash("Current password is incorrect.", "danger")
-        elif len(new_password) < 8:
-            flash("New password must be at least 8 characters.", "warning")
-        elif new_password != confirm_password:
-            flash("New passwords do not match.", "warning")
+        action = request.form.get("profile_action", "password")
+        if action == "username":
+            new_username = request.form.get("new_username", "").strip()
+            if not new_username:
+                flash("Please enter a username.", "warning")
+            elif len(new_username) < 3:
+                flash("Username must be at least 3 characters.", "warning")
+            else:
+                existing = db.execute(
+                    "SELECT id FROM users WHERE username = ? AND id != ?",
+                    (new_username, g.user["id"]),
+                ).fetchone()
+                if existing:
+                    flash("That username is already taken.", "danger")
+                else:
+                    db.execute(
+                        "UPDATE users SET username = ? WHERE id = ?",
+                        (new_username, g.user["id"]),
+                    )
+                    db.commit()
+                    g.user = (
+                        db.execute("SELECT * FROM users WHERE id = ?", (g.user["id"],))
+                        .fetchone()
+                    )
+                    flash("Username updated.", "success")
+            return redirect(url_for("profile"))
         else:
-            new_hash = generate_password_hash(new_password)
-            db.execute(
-                "UPDATE users SET password_hash = ? WHERE id = ?",
-                (new_hash, g.user["id"]),
-            )
-            db.commit()
-            g.user = (
-                db.execute("SELECT * FROM users WHERE id = ?", (g.user["id"],))
-                .fetchone()
-            )
-            flash("Password updated successfully.", "success")
+            current_password = request.form.get("current_password", "")
+            new_password = request.form.get("new_password", "")
+            confirm_password = request.form.get("confirm_password", "")
+            if not current_password or not new_password or not confirm_password:
+                flash("Please complete all password fields.", "warning")
+            elif not check_password_hash(g.user["password_hash"], current_password):
+                flash("Current password is incorrect.", "danger")
+            elif len(new_password) < 8:
+                flash("New password must be at least 8 characters.", "warning")
+            elif new_password != confirm_password:
+                flash("New passwords do not match.", "warning")
+            else:
+                new_hash = generate_password_hash(new_password)
+                db.execute(
+                    "UPDATE users SET password_hash = ? WHERE id = ?",
+                    (new_hash, g.user["id"]),
+                )
+                db.commit()
+                g.user = (
+                    db.execute("SELECT * FROM users WHERE id = ?", (g.user["id"],))
+                    .fetchone()
+                )
+                flash("Password updated successfully.", "success")
             return redirect(url_for("profile"))
 
     results = db.execute(

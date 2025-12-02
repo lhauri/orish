@@ -712,6 +712,12 @@ a {
     border-radius: 16px;
     background: #eef2ff;
     color: #312e81;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.flash.fade {
+    opacity: 0;
+    transform: translateY(-6px);
 }
 
 .flash-danger { background: #fee2e2; color: #991b1b; }
@@ -1029,6 +1035,25 @@ select,
     flex-wrap: wrap;
 }
 
+.user-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.user-actions form {
+    display: inline-flex;
+    flex: 0 0 auto;
+}
+
+.info-callout {
+    padding: 1rem 1.2rem;
+    border-radius: 1.5rem;
+    background: rgba(124, 58, 237, 0.08);
+    border: 1px dashed rgba(124, 58, 237, 0.4);
+}
+
 .user-table .actions-col {
     width: 220px;
 }
@@ -1072,6 +1097,7 @@ select,
     display: flex;
     flex-direction: column;
     gap: 0.8rem;
+    min-height: 320px;
 }
 
 .exam-actions {
@@ -1088,6 +1114,48 @@ select,
 
 .exam-card small {
     color: var(--muted);
+}
+
+.instructions-card {
+    margin-top: 1rem;
+    padding: 1rem 1.3rem;
+    border-radius: 1.5rem;
+    border: 1px solid var(--border);
+    background: var(--surface-muted);
+}
+
+.instructions-card.inline {
+    max-width: 420px;
+}
+
+.instruction-steps {
+    margin: 0;
+    padding-left: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.instruction-steps li {
+    font-size: 0.95rem;
+}
+
+.exam-form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.exam-form-card {
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    padding: 1.3rem;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
 }
 
 .exam-manage-meta {

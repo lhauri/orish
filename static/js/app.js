@@ -61,7 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (form.dataset.skipLoading === 'true') {
             return;
         }
-        form.addEventListener('submit', () => {
+        form.addEventListener('submit', event => {
+            if (form.dataset.ajaxSubmitting === 'true') {
+                return;
+            }
             const submitButton =
                 form.querySelector('button[type="submit"].btn') ||
                 form.querySelector('button.btn:not([type])');
@@ -70,6 +73,68 @@ document.addEventListener('DOMContentLoaded', () => {
                 submitButton.setAttribute('aria-busy', 'true');
                 submitButton.setAttribute('data-loading', 'true');
             }
+        });
+    });
+
+    const pushFlash = (message, category = 'info') => {
+        let container = document.querySelector('.flash-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'flash-container';
+            document.querySelector('.content')?.prepend(container);
+        }
+        const flash = document.createElement('div');
+        flash.className = `flash flash-${category}`;
+        flash.textContent = message;
+        container.appendChild(flash);
+        setTimeout(() => {
+            flash.classList.add('fade');
+            flash.addEventListener('transitionend', () => flash.remove(), { once: true });
+        }, 3500);
+    };
+
+    const deleteForms = Array.from(document.querySelectorAll('.js-delete-user'));
+    deleteForms.forEach(form => {
+        form.addEventListener('submit', event => {
+            event.preventDefault();
+            const username = form.dataset.userName || 'this user';
+            if (!window.confirm(`Delete ${username}? This removes their quiz and exam history.`)) {
+                return;
+            }
+            const formData = new FormData(form);
+            form.dataset.ajaxSubmitting = 'true';
+            const submitButton = form.querySelector('button');
+            if (submitButton) {
+                submitButton.classList.add('loading');
+            }
+            fetch(form.action || window.location.pathname, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            })
+                .then(resp => resp.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        const row = form.closest('tr');
+                        if (row) {
+                            row.remove();
+                        }
+                        pushFlash(data.message || 'User deleted.', 'success');
+                    } else {
+                        pushFlash(data.message || 'Something went wrong.', 'danger');
+                    }
+                })
+                .catch(() => {
+                    pushFlash('Could not delete user. Please try again.', 'danger');
+                })
+                .finally(() => {
+                    if (submitButton) {
+                        submitButton.classList.remove('loading');
+                    }
+                    form.dataset.ajaxSubmitting = 'false';
+                });
         });
     });
 

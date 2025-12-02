@@ -8,6 +8,14 @@
             <h2>Ready when you are</h2>
             <p class="muted">Full-length attempts are shared with teachers so they can review strengths and gaps.</p>
         </div>
+        <div class="instructions-card inline">
+            <p class="eyebrow">Steps</p>
+            <ol class="instruction-steps">
+                <li>Choose <strong>Study mode</strong> for unlimited practice.</li>
+                <li>Pick <strong>Test mode</strong> for graded attempts sent to teachers.</li>
+                <li>Teachers can manage sharing via the buttons below each card.</li>
+            </ol>
+        </div>
     </div>
     {% if exams %}
     <div class="exam-grid">
@@ -80,29 +88,34 @@
 </div>
 {% if g.user['is_admin'] %}
 <div class="card">
-    <h3>Create quick exam</h3>
-    <form class="form-grid" method="post" action="{{ url_for('create_exam') }}">
-        <label>Title<input name="title" required></label>
-        <label>Description<textarea name="description" rows="2"></textarea></label>
-        <label>Category
-            <select name="category">
-                {% for key, meta in categories.items() %}
-                <option value="{{ key }}">{{ meta.label }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label>Questions<input type="number" name="questions" value="5" min="3" max="15"></label>
-        <label><input type="checkbox" name="study_enabled" checked> Allow study attempts</label>
-        <label><input type="checkbox" name="test_enabled" checked> Allow test attempts</label>
-        <button class="btn primary">Publish</button>
-    </form>
-</div>
-<div class="card">
-    <h3>Let AI draft an exam</h3>
-    <form class="form-grid" method="post" action="{{ url_for('generate_exam_ai') }}">
-        <label>Prompt<textarea name="prompt" rows="3" placeholder="e.g. Create a grammar intensive mock for reported speech."></textarea></label>
-        <button class="btn secondary">Generate exam</button>
-    </form>
+    <h3>Build or generate exams</h3>
+    <div class="exam-form-row">
+        <form class="exam-form-card" method="post" action="{{ url_for('create_exam') }}">
+            <p class="eyebrow">Manual setup</p>
+            <label>Title<input name="title" required placeholder="e.g. Business vocab check"></label>
+            <label>Description<textarea name="description" rows="2" placeholder="Shown to students"></textarea></label>
+            <label>Category
+                <select name="category">
+                    {% for key, meta in categories.items() %}
+                    <option value="{{ key }}">{{ meta.label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>Question count<input type="number" name="questions" value="5" min="3" max="15"></label>
+            <label class="toggle">
+                <input type="checkbox" name="study_enabled" checked> <span>Allow study attempts</span>
+            </label>
+            <label class="toggle">
+                <input type="checkbox" name="test_enabled" checked> <span>Allow test attempts</span>
+            </label>
+            <button class="btn primary">Publish</button>
+        </form>
+        <form class="exam-form-card" method="post" action="{{ url_for('generate_exam_ai') }}">
+            <p class="eyebrow">AI co-creator</p>
+            <label>Prompt<textarea name="prompt" rows="5" placeholder="Describe the skill, level, and tone. e.g. 'Create a B1 grammar drill on conditional sentences.'"></textarea></label>
+            <button class="btn secondary">Generate draft</button>
+        </form>
+    </div>
 </div>
 {% endif %}
 {% endblock %}

@@ -45,9 +45,24 @@
 
 <section class="profile-grid">
     <article class="card profile-form">
+        <h3>Update username</h3>
+        <p class="muted">Change how your name appears across dashboards. Usernames must be unique.</p>
+        <form method="post" class="form-grid">
+            <input type="hidden" name="profile_action" value="username">
+            <label>
+                <span>New username</span>
+                <input type="text" name="new_username" value="{{ g.user['username'] }}" required>
+            </label>
+            <div class="form-actions">
+                <button class="btn primary" type="submit">Save username</button>
+            </div>
+        </form>
+    </article>
+    <article class="card profile-form">
         <h3>Update password</h3>
         <p class="muted">Keep your account secure by choosing a long, memorable passphrase.</p>
         <form method="post" class="form-grid">
+            <input type="hidden" name="profile_action" value="password">
             <label class="password-field">
                 <span>Current password</span>
                 <input class="password-input" type="password" name="current_password" autocomplete="current-password" required>
