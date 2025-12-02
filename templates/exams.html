@@ -39,44 +39,51 @@
     {% if exams %}
     <div class="exam-grid enhanced">
         {% for exam in exams %}
+        {% set study_allowed = exam.study_enabled and exam.can_study and exam.has_questions %}
+        {% set test_allowed = exam.test_enabled and exam.can_test and exam.has_questions %}
         <article class="exam-card">
-            <header>
-                <div class="badge-row">
-                    <span class="tag">{{ exam.category_label }}</span>
-                    {% if exam.study_enabled %}<span class="pill">Study</span>{% endif %}
-                    {% if exam.test_enabled %}<span class="pill secondary">Test</span>{% endif %}
+            <div class="exam-card-main">
+                <header>
+                    <div class="badge-row">
+                        <span class="tag">{{ exam.category_label }}</span>
+                        {% if exam.study_enabled %}<span class="pill">Study</span>{% endif %}
+                        {% if exam.test_enabled %}<span class="pill secondary">Test</span>{% endif %}
+                    </div>
+                    <div>
+                        <h3>{{ exam.title }}</h3>
+                        <p>{{ exam.description or 'Focused practice with auto-tracking.' }}</p>
+                    </div>
+                </header>
+                <div class="exam-meta">
+                    <p class="muted tiny">{{ exam.questions }} question goal</p>
+                    <p class="muted tiny">{{ exam.specific_questions }} custom • {{ exam.general_questions }} bank</p>
                 </div>
-                <div>
-                    <h3>{{ exam.title }}</h3>
-                    <p>{{ exam.description or 'Focused practice with auto-tracking.' }}</p>
+                {% if exam.has_questions %}
+                <p class="status-note ready">Ready for students</p>
+                {% else %}
+                <div class="status-note warning">
+                    <p>Needs {{ exam.missing_questions }} more question{{ 's' if exam.missing_questions != 1 else '' }} before opening.</p>
+                    {% if g.user['is_admin'] %}
+                    <a class="btn ghost restock-btn" href="{{ url_for('admin_questions', category=exam.category) }}">Restock bank</a>
+                    {% endif %}
                 </div>
-            </header>
-            <div class="exam-meta">
-                <p class="muted tiny">{{ exam.questions }} question goal</p>
-                <p class="muted tiny">{{ exam.specific_questions }} custom • {{ exam.general_questions }} bank</p>
+                {% endif %}
             </div>
-            {% if exam.has_questions %}
-            <div class="exam-actions">
-                {% set study_allowed = exam.study_enabled and exam.can_study and exam.has_questions %}
-                {% set test_allowed = exam.test_enabled and exam.can_test and exam.has_questions %}
-                <a class="btn ghost {% if not study_allowed %}disabled{% endif %}" {% if study_allowed %}href="{{ url_for('take_exam', exam_id=exam.id, mode='study') }}"{% else %}aria-disabled="true"{% endif %}>Study mode</a>
-                <a class="btn primary {% if not test_allowed %}disabled{% endif %}" {% if test_allowed %}href="{{ url_for('take_exam', exam_id=exam.id, mode='test') }}"{% else %}aria-disabled="true"{% endif %}>Test mode</a>
-            </div>
-            {% else %}
-            <p class="muted tiny">Needs {{ exam.missing_questions }} more question{{ 's' if exam.missing_questions != 1 else '' }} before students can open it.</p>
-            {% if g.user['is_admin'] %}
-            <a class="btn ghost" href="{{ url_for('admin_questions', category=exam.category) }}">Restock bank</a>
-            {% endif %}
-            {% endif %}
-            {% if g.user['is_admin'] %}
-            <div class="admin-note">
-                <p class="tiny">{{ exam.assigned_count }} student{{ 's' if exam.assigned_count != 1 else '' }} currently assigned.</p>
-                <div class="admin-actions">
-                    <a class="btn secondary" href="{{ url_for('manage_exam', exam_id=exam.id) }}">Manage</a>
-                    <a class="btn ghost" href="{{ url_for('admin_questions', category=exam.category) }}">Question bank</a>
+            <div class="exam-card-footer">
+                <div class="exam-actions">
+                    <a class="btn ghost {% if not study_allowed %}disabled{% endif %}" {% if study_allowed %}href="{{ url_for('take_exam', exam_id=exam.id, mode='study') }}"{% else %}aria-disabled="true"{% endif %}>Study mode</a>
+                    <a class="btn primary {% if not test_allowed %}disabled{% endif %}" {% if test_allowed %}href="{{ url_for('take_exam', exam_id=exam.id, mode='test') }}"{% else %}aria-disabled="true"{% endif %}>Test mode</a>
                 </div>
+                {% if g.user['is_admin'] %}
+                <div class="admin-note">
+                    <p class="tiny">{{ exam.assigned_count }} student{{ 's' if exam.assigned_count != 1 else '' }} currently assigned.</p>
+                    <div class="admin-actions">
+                        <a class="btn secondary" href="{{ url_for('manage_exam', exam_id=exam.id) }}">Manage</a>
+                        <a class="btn ghost" href="{{ url_for('admin_questions', category=exam.category) }}">Question bank</a>
+                    </div>
+                </div>
+                {% endif %}
             </div>
-            {% endif %}
         </article>
         {% endfor %}
     </div>
