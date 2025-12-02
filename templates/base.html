@@ -63,6 +63,10 @@
                 <i data-lucide="activity"></i>
                 <span>Progress</span>
             </a>
+            <a href="{{ url_for('study_packs') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['study_packs', 'study_group'] else 'false' }}">
+                <i data-lucide="layers"></i>
+                <span>Study packs</span>
+            </a>
             <a href="{{ url_for('profile') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'profile' else 'false' }}">
                 <i data-lucide="user"></i>
                 <span>Profile</span>

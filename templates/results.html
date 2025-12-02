@@ -4,10 +4,20 @@
 <div class="card">
     <div class="results-head">
         <div>
-            <p class="tag">{{ category.label }}</p>
+            <p class="tag">
+                {% if quiz.group_name %}
+                {{ quiz.group_name }} • {{ category.label }}
+                {% else %}
+                {{ category.label }}
+                {% endif %}
+            </p>
             <h2>You scored {{ quiz.score }} / {{ quiz.total }}</h2>
         </div>
+        {% if quiz.group_id %}
+        <a class="btn secondary" href="{{ url_for('study_group', group_id=quiz.group_id) }}">Retry pack</a>
+        {% else %}
         <a class="btn secondary" href="{{ url_for('quiz', category=quiz.category) }}">Retry</a>
+        {% endif %}
     </div>
     <ul class="answer-list">
         {% for answer in quiz.answers %}

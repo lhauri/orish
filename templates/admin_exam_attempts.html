@@ -15,6 +15,7 @@
                 <tr>
                     <th>Student</th>
                     <th>Exam</th>
+                    <th>Mode</th>
                     <th>Date</th>
                     <th>Score</th>
                     <th></th>
@@ -25,12 +26,13 @@
                 <tr>
                     <td>{{ attempt.username }}</td>
                     <td>{{ attempt.title }}</td>
+                    <td>{{ attempt.mode|title }}</td>
                     <td>{{ attempt.created_at }}</td>
                     <td>{{ attempt.score }} / {{ attempt.total }}</td>
                     <td><a class="btn ghost" href="{{ url_for('admin_exam_attempt_detail', attempt_id=attempt.id) }}">Details</a></td>
                 </tr>
                 {% else %}
-                <tr><td colspan="5">No attempts recorded yet.</td></tr>
+                <tr><td colspan="6">No attempts recorded yet.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

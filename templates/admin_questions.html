@@ -65,9 +65,93 @@
                             <button class="btn danger">Delete</button>
                         </form>
                     </div>
+                    <div class="group-meta">
+                        {% set attached = memberships.get(row['id'], []) %}
+                        {% if attached %}
+                        <p class="muted tiny">Groups:</p>
+                        <div>
+                            {% for item in attached %}
+                            <span class="tag">{{ item.name }}</span>
+                            <form method="post" action="{{ url_for('remove_question_from_group', category=category) }}">
+                                <input type="hidden" name="question_id" value="{{ row['id'] }}">
+                                <input type="hidden" name="group_id" value="{{ item.group_id }}">
+                                <button class="btn ghost" type="submit">Remove</button>
+                            </form>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="muted tiny">Not part of any group.</p>
+                        {% endif %}
+                        {% if groups %}
+                        <form class="inline-form" method="post" action="{{ url_for('assign_question_to_group', category=category) }}">
+                            <input type="hidden" name="question_id" value="{{ row['id'] }}">
+                            <label>
+                                <span class="sr-only">Group</span>
+                                <select name="group_id">
+                                    {% for group in groups %}
+                                    <option value="{{ group.id }}">{{ group.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </label>
+                            <button class="btn ghost">Add to group</button>
+                        </form>
+                        {% endif %}
+                    </div>
                 </li>
                 {% else %}
                 <li>No questions yet.</li>
+                {% endfor %}
+            </ul>
+        </section>
+        <section class="admin-form">
+            <h3>Create a study pack ({{ categories[category].label }})</h3>
+            <form method="post" action="{{ url_for('create_question_group', category=category) }}">
+                <label>Name<input name="name" required></label>
+                <label>Description<textarea name="description" rows="2"></textarea></label>
+                <label>Optional AI prompt<textarea name="ai_prompt" rows="2" placeholder="Why this group exists?"></textarea></label>
+                <button class="btn primary">Create group</button>
+            </form>
+        </section>
+        <section class="admin-list">
+            <h3>Groups for {{ categories[category].label }} ({{ groups|length }})</h3>
+            <ul>
+                {% for group in groups %}
+                <li>
+                    <div>
+                        <strong>{{ group.name }}</strong>
+                        <p class="muted">{{ group.description or 'No description yet.' }}</p>
+                        <p class="tiny">{{ group.question_count }} question{{ 's' if group.question_count != 1 else '' }} • {{ group.student_count }} student{{ 's' if group.student_count != 1 else '' }}</p>
+                    </div>
+                    <div class="admin-actions stacked">
+                        <form method="post" action="{{ url_for('share_question_group', group_id=group.id) }}">
+                            <input type="hidden" name="category" value="{{ category }}">
+                            <label>Share with
+                                <input name="identifier" placeholder="student email">
+                            </label>
+                            <button class="btn secondary">Share</button>
+                        </form>
+                    </div>
+                    {% set assigned = group_assignments.get(group.id, []) %}
+                    <div class="assignment-list">
+                        {% if assigned %}
+                        <ul>
+                            {% for assignment in assigned %}
+                            <li>
+                                {{ assignment.username }} ({{ assignment.email }})
+                                <form method="post" action="{{ url_for('revoke_question_group_assignment', group_id=group.id, assignment_id=assignment.id) }}">
+                                    <input type="hidden" name="category" value="{{ category }}">
+                                    <button class="btn tiny">Remove</button>
+                                </form>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="muted tiny">Not shared with any students yet.</p>
+                        {% endif %}
+                    </div>
+                </li>
+                {% else %}
+                <li>No groups for this subject yet. Create one above to bundle related questions.</li>
                 {% endfor %}
             </ul>
         </section>

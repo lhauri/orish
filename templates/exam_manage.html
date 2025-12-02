@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block title %}Manage {{ exam.title }} • Orish{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-head">
+        <div>
+            <p class="tag">Exam builder</p>
+            <h2>{{ exam.title }}</h2>
+            <p class="muted">{{ exam.description or 'No description yet.' }}</p>
+        </div>
+        <a class="btn ghost" href="{{ url_for('exams') }}">Back to exams</a>
+    </div>
+    <div>
+        <p class="muted tiny">Question target: {{ exam.questions }}</p>
+        <p class="muted tiny">Custom questions: {{ stats.specific }} • Bank backup: {{ stats.general }}</p>
+    </div>
+    <form class="form-grid" method="post" action="{{ url_for('update_exam_settings', exam_id=exam.id) }}">
+        <label>Questions<input type="number" name="questions" min="3" max="30" value="{{ exam.questions }}"></label>
+        <label><input type="checkbox" name="study_enabled" {% if exam.study_enabled %}checked{% endif %}> Allow study mode</label>
+        <label><input type="checkbox" name="test_enabled" {% if exam.test_enabled %}checked{% endif %}> Allow test mode</label>
+        <label><input type="checkbox" name="is_active" {% if exam.is_active %}checked{% endif %}> Visible to assigned students</label>
+        <button class="btn primary">Update settings</button>
+    </form>
+</div>
+<div class="card">
+    <div class="card-head">
+        <div>
+            <p class="tag">Exam-specific questions</p>
+            <h3>{{ questions|length }} item{{ 's' if questions|length != 1 else '' }}</h3>
+            <p class="muted">Questions listed here are used first, then the general {{ categories[exam.category].label }} bank fills any remaining slots.</p>
+        </div>
+    </div>
+    <div class="admin-list">
+        {% if questions %}
+        <ul class="answer-list">
+            {% for question in questions %}
+            <li class="answer">
+                <div>
+                    <strong>{{ loop.index }}.</strong> {{ question.prompt }}
+                    {% if question.answer_type == 'text' %}
+                    <p class="muted tiny">Open response • Reference: {{ question.reference_answer or question.correct_answer }}</p>
+                    {% else %}
+                    <p class="muted tiny">Correct: {{ question.correct_answer }}</p>
+                    {% endif %}
+                </div>
+                <div class="admin-actions">
+                    <form method="post" action="{{ url_for('delete_exam_question', exam_id=exam.id, question_id=question.id) }}" onsubmit="return confirm('Remove this question?')">
+                        <button class="btn danger">Delete</button>
+                    </form>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">No custom questions yet. Add some below or let AI draft them.</p>
+        {% endif %}
+    </div>
+    <div class="form-grid">
+        <form method="post" action="{{ url_for('add_exam_question', exam_id=exam.id) }}">
+            <h4>Add manual question</h4>
+            <label>Prompt<textarea name="prompt" rows="3" required></textarea></label>
+            <label>Answer type
+                <select name="answer_type">
+                    <option value="mcq" {% if exam.category != 'translation' %}selected{% endif %}>Multiple choice</option>
+                    <option value="text" {% if exam.category == 'translation' %}selected{% endif %}>Open response</option>
+                </select>
+            </label>
+            <label>Correct answer<input name="correct_answer"></label>
+            <label>Wrong option 1<input name="wrong1"></label>
+            <label>Wrong option 2<input name="wrong2"></label>
+            <label>Wrong option 3<input name="wrong3"></label>
+            <label>Reference answer<textarea name="reference_answer" rows="2" placeholder="Required for open responses"></textarea></label>
+            <button class="btn primary">Add question</button>
+        </form>
+        <form method="post" action="{{ url_for('add_exam_questions_ai', exam_id=exam.id) }}">
+            <h4>Use AI helper</h4>
+            <label>Prompt<textarea name="prompt" rows="4" placeholder="e.g. Focus on reported speech transformations." ></textarea></label>
+            <button class="btn secondary">Generate {{ categories[exam.category].label }} questions</button>
+        </form>
+    </div>
+</div>
+<div class="card">
+    <div class="card-head">
+        <div>
+            <p class="tag">Student access</p>
+            <h3>Share with learners</h3>
+            <p class="muted">Students must be listed below before they can see this exam.</p>
+        </div>
+    </div>
+    <form class="form-grid" method="post" action="{{ url_for('assign_exam_to_student', exam_id=exam.id) }}">
+        <label>Student username or email<input name="identifier" required></label>
+        <label><input type="checkbox" name="can_study" checked> Allow study mode</label>
+        <label><input type="checkbox" name="can_test" checked> Allow test mode</label>
+        <button class="btn primary">Share exam</button>
+    </form>
+    <div class="table-scroll">
+        <table class="attempt-table">
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Study</th>
+                    <th>Test</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for assignment in assignments %}
+                <tr>
+                    <td>{{ assignment.username }} <span class="muted tiny">({{ assignment.email }})</span></td>
+                    <td>{{ 'Yes' if assignment.can_study else 'No' }}</td>
+                    <td>{{ 'Yes' if assignment.can_test else 'No' }}</td>
+                    <td>
+                        <form method="post" action="{{ url_for('delete_exam_assignment', exam_id=exam.id, assignment_id=assignment.id) }}" onsubmit="return confirm('Remove this student?')">
+                            <button class="btn danger">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4">No students assigned yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

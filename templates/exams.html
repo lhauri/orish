@@ -9,27 +9,45 @@
             <p class="muted">Full-length attempts are shared with teachers so they can review strengths and gaps.</p>
         </div>
     </div>
+    {% if exams %}
     <div class="exam-grid">
         {% for exam in exams %}
         <div class="exam-card">
             <p class="tag">{{ exam.category_label }}</p>
             <h3>{{ exam.title }}</h3>
             <p>{{ exam.description or 'Focused practice with auto-tracking.' }}</p>
-            <small>{{ exam.questions }} questions • {{ exam.category_label }}</small>
+            <p class="muted tiny">{{ exam.questions }} question goal • {{ exam.specific_questions }} custom / {{ exam.general_questions }} bank</p>
             {% if exam.has_questions %}
-            <a class="btn primary" href="{{ url_for('take_exam', exam_id=exam.id) }}">Take exam</a>
+            <div class="exam-actions">
+                {% set study_allowed = exam.study_enabled and exam.can_study and exam.has_questions %}
+                {% set test_allowed = exam.test_enabled and exam.can_test and exam.has_questions %}
+                <a class="btn ghost {% if not study_allowed %}disabled{% endif %}" {% if study_allowed %}href="{{ url_for('take_exam', exam_id=exam.id, mode='study') }}"{% else %}aria-disabled="true"{% endif %}>Study mode</a>
+                <a class="btn primary {% if not test_allowed %}disabled{% endif %}" {% if test_allowed %}href="{{ url_for('take_exam', exam_id=exam.id, mode='test') }}"{% else %}aria-disabled="true"{% endif %}>Test mode</a>
+            </div>
             {% else %}
-            <button class="btn disabled" disabled>Unavailable</button>
-            <p class="muted tiny">Needs {{ exam.missing_questions }} more question{{ 's' if exam.missing_questions != 1 else '' }}.</p>
+            <p class="muted tiny">Needs {{ exam.missing_questions }} more question{{ 's' if exam.missing_questions != 1 else '' }} before students can open it.</p>
             {% if g.user['is_admin'] %}
-            <a class="btn ghost" href="{{ url_for('admin_questions', category=exam.category) }}">Add questions</a>
+            <a class="btn ghost" href="{{ url_for('admin_questions', category=exam.category) }}">Restock bank</a>
             {% endif %}
+            {% endif %}
+            {% if g.user['is_admin'] %}
+            <div class="admin-note">
+                <p class="tiny">{{ exam.assigned_count }} student{{ 's' if exam.assigned_count != 1 else '' }} currently assigned.</p>
+                <div class="admin-actions">
+                    <a class="btn secondary" href="{{ url_for('manage_exam', exam_id=exam.id) }}">Manage</a>
+                    <a class="btn ghost" href="{{ url_for('admin_questions', category=exam.category) }}">Question bank</a>
+                </div>
+            </div>
             {% endif %}
         </div>
-        {% else %}
-        <p>No active exams yet.</p>
         {% endfor %}
     </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No exams to show yet.</p>
+        <p class="muted">Once a teacher assigns you an exam, it will appear here.</p>
+    </div>
+    {% endif %}
 </div>
 <div class="card">
     <h3>Your latest attempts</h3>
@@ -38,6 +56,7 @@
             <thead>
                 <tr>
                     <th>Exam</th>
+                    <th>Mode</th>
                     <th>Date</th>
                     <th>Score</th>
                     <th></th>
@@ -47,12 +66,13 @@
                 {% for attempt in attempts %}
                 <tr>
                     <td>{{ attempt.title }}</td>
+                    <td>{{ attempt.mode|title }}</td>
                     <td>{{ attempt.created_at }}</td>
                     <td>{{ attempt.score }} / {{ attempt.total }}</td>
                     <td><a class="btn ghost" href="{{ url_for('exam_result', attempt_id=attempt.id) }}">Open</a></td>
                 </tr>
                 {% else %}
-                <tr><td colspan="4">No attempts yet.</td></tr>
+                <tr><td colspan="5">No attempts yet.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -72,6 +92,8 @@
             </select>
         </label>
         <label>Questions<input type="number" name="questions" value="5" min="3" max="15"></label>
+        <label><input type="checkbox" name="study_enabled" checked> Allow study attempts</label>
+        <label><input type="checkbox" name="test_enabled" checked> Allow test attempts</label>
         <button class="btn primary">Publish</button>
     </form>
 </div>

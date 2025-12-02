@@ -231,12 +231,48 @@ FALLBACK_EXAM_TEMPLATES = [
         "description": "Quick assessment drawn from the built-in bank.",
         "category": "vocabulary",
         "questions": 5,
+        "items": [
+            {
+                "prompt": "Choose the best meaning for \"resilient\".",
+                "answer_type": "mcq",
+                "correct_answer": "Able to recover quickly",
+                "wrong1": "Afraid of speaking",
+                "wrong2": "Expensive to buy",
+                "wrong3": "Easy to forget",
+            },
+            {
+                "prompt": "Select the synonym of \"ambitious\".",
+                "answer_type": "mcq",
+                "correct_answer": "Driven",
+                "wrong1": "Careless",
+                "wrong2": "Sleepy",
+                "wrong3": "Salty",
+            },
+        ],
     },
     {
         "title": "Grammar Tune-Up",
         "description": "Targeted practice for tenses and connectors.",
         "category": "grammar",
         "questions": 5,
+        "items": [
+            {
+                "prompt": "If it ___ tomorrow, we will stay home.",
+                "answer_type": "mcq",
+                "correct_answer": "rains",
+                "wrong1": "rained",
+                "wrong2": "rain",
+                "wrong3": "was raining",
+            },
+            {
+                "prompt": "By the time she arrived, we ___ dinner.",
+                "answer_type": "mcq",
+                "correct_answer": "had started",
+                "wrong1": "start",
+                "wrong2": "were starting",
+                "wrong3": "starting",
+            },
+        ],
     },
 ]
 
@@ -528,8 +564,10 @@ def generate_questions_with_prompt(category, prompt):
 def generate_exam_from_prompt(prompt):
     instructions = (
         "Create a single exam descriptor as JSON with keys title, description, "
-        "category (vocabulary/grammar/translation), questions (int between 3 and 10). "
-        "No extra text."
+        "category (vocabulary/grammar/translation), questions (int between 3 and 10) "
+        "and items (array of questions). Each item needs prompt, answer_type ('mcq' or 'text'), "
+        "correct_answer, wrong1, wrong2, wrong3, reference_answer. "
+        "Return JSON only."
     )
     use_fallback = False
     try:
@@ -558,6 +596,32 @@ def generate_exam_from_prompt(prompt):
         "category": category,
         "questions": max(3, min(questions, 10)),
     }
+    items = data.get("items") or data.get("questions") or []
+    normalized = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        prompt_text = item.get("prompt", "").strip()
+        if not prompt_text:
+            continue
+        answer_type = (item.get("answer_type") or "").lower()
+        if answer_type not in {"mcq", "text"}:
+            answer_type = "text" if category == "translation" else "mcq"
+        entry = {
+            "prompt": prompt_text[:400],
+            "answer_type": answer_type,
+            "correct_answer": (item.get("correct_answer") or "").strip()[:200],
+            "wrong1": (item.get("wrong1") or "").strip()[:200],
+            "wrong2": (item.get("wrong2") or "").strip()[:200],
+            "wrong3": (item.get("wrong3") or "").strip()[:200],
+            "reference_answer": (
+                item.get("reference_answer")
+                or item.get("correct_answer")
+                or ""
+            ).strip()[:300],
+        }
+        normalized.append(entry)
+    payload["items"] = normalized
     if use_fallback:
         desc = payload["description"] or "Quick mixed drill."
         if prompt:
@@ -673,6 +737,16 @@ def close_db(exception=None):
         db.close()
 
 
+def _ensure_column(db, table, column, definition):
+    """Add a column if it does not exist yet."""
+    existing = {
+        row["name"]
+        for row in db.execute(f"PRAGMA table_info({table})").fetchall()
+    }
+    if column not in existing:
+        db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def init_tables():
     db = get_db()
     cursor = db.cursor()
@@ -737,12 +811,75 @@ def init_tables():
             total INTEGER NOT NULL,
             details TEXT NOT NULL,
             ai_feedback TEXT,
+             mode TEXT NOT NULL DEFAULT 'test',
             created_at TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users (id),
             FOREIGN KEY (exam_id) REFERENCES exams (id)
         );
+
+        CREATE TABLE IF NOT EXISTS question_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            description TEXT,
+            ai_prompt TEXT,
+            created_by INTEGER,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (created_by) REFERENCES users (id)
+        );
+
+        CREATE TABLE IF NOT EXISTS question_group_memberships (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL,
+            category TEXT NOT NULL,
+            question_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (group_id, category, question_id),
+            FOREIGN KEY (group_id) REFERENCES question_groups (id)
+        );
+
+        CREATE TABLE IF NOT EXISTS question_group_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            can_view INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (group_id, user_id),
+            FOREIGN KEY (group_id) REFERENCES question_groups (id),
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        );
+
+        CREATE TABLE IF NOT EXISTS exam_questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            exam_id INTEGER NOT NULL,
+            prompt TEXT NOT NULL,
+            answer_type TEXT NOT NULL DEFAULT 'mcq',
+            correct_answer TEXT,
+            wrong1 TEXT,
+            wrong2 TEXT,
+            wrong3 TEXT,
+            reference_answer TEXT,
+            position INTEGER DEFAULT 0,
+            ai_source TEXT,
+            FOREIGN KEY (exam_id) REFERENCES exams (id)
+        );
+
+        CREATE TABLE IF NOT EXISTS exam_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            exam_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            can_study INTEGER DEFAULT 1,
+            can_test INTEGER DEFAULT 1,
+            UNIQUE (exam_id, user_id),
+            FOREIGN KEY (exam_id) REFERENCES exams (id),
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        );
         """
     )
+    _ensure_column(db, "exams", "study_enabled", "INTEGER DEFAULT 1")
+    _ensure_column(db, "exams", "test_enabled", "INTEGER DEFAULT 1")
+    _ensure_column(db, "exams", "ai_prompt", "TEXT")
+    _ensure_column(db, "exam_attempts", "mode", "TEXT DEFAULT 'test'")
     db.commit()
 
 
@@ -754,6 +891,60 @@ def row_value(row, key, default=None):
     except Exception:
         pass
     return default
+
+
+def format_question_row(category_key, row):
+    """Normalize DB rows into quiz/exam friendly payloads."""
+    category = CATEGORIES[category_key]
+    answer_type = category.get("answer_type", "mcq")
+    prompt = category["prompt_builder"](row)
+    correct = row_value(row, "correct_answer") or row_value(
+        row, "reference_answer"
+    )
+    question = {
+        "id": row["id"],
+        "prompt": prompt,
+        "correct_answer": correct,
+        "answer_type": answer_type,
+        "meta": {"source": "bank"},
+    }
+    if answer_type == "mcq":
+        options = [
+            row_value(row, "correct_answer"),
+            row_value(row, "wrong1"),
+            row_value(row, "wrong2"),
+            row_value(row, "wrong3"),
+        ]
+        question["options"] = [opt for opt in options if opt]
+        random.shuffle(question["options"])
+    else:
+        question["meta"]["reference_hint"] = row_value(row, "reference_answer")
+    if category_key == "vocabulary":
+        question["meta"]["word"] = row["word"]
+    elif category_key == "grammar":
+        question["meta"]["sentence"] = row[
+            "sentence_with_placeholder"
+        ].replace("__", "____")
+    return question
+
+
+def fetch_questions_by_ids(category_key, question_ids):
+    if not question_ids:
+        return []
+    db = get_db()
+    table = CATEGORIES[category_key]["table"]
+    placeholders = ",".join(["?"] * len(question_ids))
+    rows = db.execute(
+        f"SELECT * FROM {table} WHERE id IN ({placeholders})",
+        question_ids,
+    ).fetchall()
+    mapped = {row["id"]: row for row in rows}
+    ordered = []
+    for question_id in question_ids:
+        row = mapped.get(question_id)
+        if row:
+            ordered.append(format_question_row(category_key, row))
+    return ordered
 
 
 def login_required(view):
@@ -806,42 +997,159 @@ def fetch_random_questions(category_key, limit=5):
     ).fetchall()
     if not rows:
         raise ValueError("No questions available for this category yet. Please ask your teacher to add some.")
-    questions = []
-    for row in rows:
-        row_keys = row.keys()
-        correct_answer = (
-            row_value(row, "correct_answer")
-            if "correct_answer" in row_keys
-            else row_value(row, "reference_answer")
+    return [format_question_row(category_key, row) for row in rows]
+
+
+def fetch_exam_specific_question_rows(exam_id):
+    db = get_db()
+    return db.execute(
+        """
+        SELECT * FROM exam_questions
+        WHERE exam_id = ?
+        ORDER BY position ASC, id ASC
+        """,
+        (exam_id,),
+    ).fetchall()
+
+
+def format_exam_specific_question(row):
+    answer_type = row["answer_type"] or "mcq"
+    prompt = row["prompt"]
+    correct_answer = (
+        row_value(row, "correct_answer") or row_value(row, "reference_answer")
+    )
+    question = {
+        "id": f"exam-{row['id']}",
+        "prompt": prompt,
+        "correct_answer": correct_answer,
+        "answer_type": answer_type,
+        "meta": {"source": "exam"},
+    }
+    if answer_type == "mcq":
+        options = [
+            row_value(row, "correct_answer"),
+            row_value(row, "wrong1"),
+            row_value(row, "wrong2"),
+            row_value(row, "wrong3"),
+        ]
+        question["options"] = [opt for opt in options if opt]
+        random.shuffle(question["options"])
+    else:
+        question["meta"]["reference_hint"] = row_value(row, "reference_answer")
+    return question
+
+
+def build_exam_question_set(exam_row):
+    specific_rows = fetch_exam_specific_question_rows(exam_row["id"])
+    specific_questions = [format_exam_specific_question(row) for row in specific_rows]
+    needed = max(0, exam_row["questions"] - len(specific_questions))
+    if needed:
+        try:
+            general_questions = fetch_random_questions(exam_row["category"], limit=needed)
+        except ValueError as exc:
+            if specific_questions:
+                raise ValueError(
+                    f"This exam only has {len(specific_questions)} custom question(s). "
+                    "Add more exam-specific questions or restock the bank to continue."
+                ) from exc
+            raise
+        specific_questions.extend(general_questions)
+    if len(specific_questions) < exam_row["questions"]:
+        raise ValueError(
+            f"This exam needs {exam_row['questions']} questions but only {len(specific_questions)} "
+            "are available. Please add more exam-specific questions or replenish the question bank."
         )
-        question = {
-            "id": row["id"],
-            "prompt": category["prompt_builder"](row),
-            "correct_answer": correct_answer,
-            "answer_type": category.get("answer_type", "mcq"),
-        }
-        if question["answer_type"] == "mcq":
-            options = [
-                row_value(row, "correct_answer"),
-                row_value(row, "wrong1"),
-                row_value(row, "wrong2"),
-                row_value(row, "wrong3"),
-            ]
-            options = [opt for opt in options if opt]
-            random.shuffle(options)
-            question["options"] = options
-        if category_key == "vocabulary":
-            question["meta"] = {"word": row["word"]}
-        elif category_key == "grammar":
-            question["meta"] = {
-                "sentence": row["sentence_with_placeholder"].replace("__", "____")
-            }
-        else:
-            question["meta"] = {}
-        if question["answer_type"] == "text":
-            question["meta"]["reference_hint"] = row_value(row, "reference_answer")
-        questions.append(question)
+    return specific_questions
+
+
+def count_general_questions():
+    db = get_db()
+    totals = {}
+    for key, meta in CATEGORIES.items():
+        totals[key] = (
+            db.execute(f"SELECT COUNT(*) FROM {meta['table']}").fetchone()[0]
+        )
+    return totals
+
+
+def get_exam_assignment(exam_id, user_id):
+    if not user_id:
+        return None
+    db = get_db()
+    return db.execute(
+        """
+        SELECT can_study, can_test
+        FROM exam_assignments
+        WHERE exam_id = ? AND user_id = ?
+        """,
+        (exam_id, user_id),
+    ).fetchone()
+
+
+def user_can_take_exam(exam_row, user, mode):
+    if not user:
+        return False
+    if user["is_admin"]:
+        return True
+    assignment = get_exam_assignment(exam_row["id"], user["id"])
+    if not assignment:
+        return False
+    if mode == "study" and not exam_row["study_enabled"]:
+        return False
+    if mode == "test" and not exam_row["test_enabled"]:
+        return False
+    can_flag = assignment["can_study"] if mode == "study" else assignment["can_test"]
+    return bool(can_flag)
+
+
+def load_question_group(group_id):
+    return (
+        get_db()
+        .execute("SELECT * FROM question_groups WHERE id = ?", (group_id,))
+        .fetchone()
+    )
+
+
+def fetch_group_questions(group_id):
+    db = get_db()
+    memberships = db.execute(
+        """
+        SELECT category, question_id
+        FROM question_group_memberships
+        WHERE group_id = ?
+        ORDER BY id ASC
+        """,
+        (group_id,),
+    ).fetchall()
+    if not memberships:
+        return []
+    grouped = {}
+    for row in memberships:
+        category = row["category"]
+        if category not in CATEGORIES:
+            continue
+        grouped.setdefault(category, []).append(row["question_id"])
+    questions = []
+    for category_key, ids in grouped.items():
+        questions.extend(fetch_questions_by_ids(category_key, ids))
     return questions
+
+
+def user_can_view_group(group_row, user):
+    if not user:
+        return False
+    if user["is_admin"]:
+        return True
+    db = get_db()
+    row = db.execute(
+        """
+        SELECT can_view
+        FROM question_group_assignments
+        WHERE group_id = ? AND user_id = ?
+        """,
+        (group_row["id"], user["id"]),
+    ).fetchone()
+    return bool(row and row["can_view"])
 
 
 @app.route("/")
@@ -1201,23 +1509,48 @@ def quiz_select():
 @login_required
 def exams():
     db = get_db()
-    exam_rows = db.execute(
-        "SELECT * FROM exams WHERE is_active = 1 ORDER BY id DESC"
-    ).fetchall()
+    general_counts = count_general_questions()
+    if g.user["is_admin"]:
+        exam_rows = db.execute(
+            "SELECT *, 1 AS can_study, 1 AS can_test FROM exams ORDER BY id DESC"
+        ).fetchall()
+    else:
+        exam_rows = db.execute(
+            """
+            SELECT e.*, ea.can_study, ea.can_test
+            FROM exams e
+            JOIN exam_assignments ea ON ea.exam_id = e.id
+            WHERE ea.user_id = ? AND e.is_active = 1
+            ORDER BY e.id DESC
+            """,
+            (g.user["id"],),
+        ).fetchall()
     exams = []
     for row in exam_rows:
         data = dict(row)
         category_meta = CATEGORIES.get(data["category"], {})
         table = category_meta.get("table")
-        if table:
-            available = db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-        else:
-            available = 0
+        available_general = general_counts.get(data["category"], 0) if table else 0
+        specific_total = (
+            db.execute(
+                "SELECT COUNT(*) FROM exam_questions WHERE exam_id = ?", (data["id"],)
+            ).fetchone()[0]
+        )
+        assigned_count = db.execute(
+            "SELECT COUNT(*) FROM exam_assignments WHERE exam_id = ?",
+            (data["id"],),
+        ).fetchone()[0]
+        available = available_general + specific_total
         data["category_label"] = category_meta.get("label", data["category"].title())
         data["category_icon"] = category_meta.get("icon", "book")
         data["has_questions"] = available >= data["questions"]
         data["available_questions"] = available
+        data["general_questions"] = available_general
+        data["specific_questions"] = specific_total
+        data["assigned_count"] = assigned_count
         data["missing_questions"] = max(0, data["questions"] - available)
+        data["can_study"] = bool(row["can_study"])
+        data["can_test"] = bool(row["can_test"])
         exams.append(data)
     attempts = db.execute(
         """
@@ -1243,29 +1576,22 @@ def create_exam():
         questions = int(request.form.get("questions", 5))
     except ValueError:
         questions = 5
+    study_enabled = 1 if request.form.get("study_enabled", "on") else 0
+    test_enabled = 1 if request.form.get("test_enabled", "on") else 0
     if not title or category not in CATEGORIES:
         flash("Please provide a valid title and category.", "warning")
         return redirect(url_for("exams"))
     questions = max(3, min(questions, 15))
     db = get_db()
-    available = (
-        db.execute(
-            f"SELECT COUNT(*) FROM {CATEGORIES[category]['table']}",
-        ).fetchone()[0]
-    )
-    if available < questions:
-        flash(
-            f"Not enough {CATEGORIES[category]['label'].lower()} questions to create this exam. "
-            "Add more items to the question bank first.",
-            "warning",
-        )
-        return redirect(url_for("exams"))
     db.execute(
-        "INSERT INTO exams (title, description, category, questions) VALUES (?, ?, ?, ?)",
-        (title, description, category, questions),
+        """
+        INSERT INTO exams (title, description, category, questions, study_enabled, test_enabled)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (title, description, category, questions, study_enabled, test_enabled),
     )
     db.commit()
-    flash("Exam created and ready to assign.", "success")
+    flash("Exam created. Add exam-specific questions and share it with students.", "success")
     return redirect(url_for("exams"))
 
 
@@ -1281,26 +1607,47 @@ def generate_exam_ai():
     db = get_db()
     category = payload["category"]
     questions = max(3, min(payload["questions"], 15))
-    table = CATEGORIES[category]["table"]
-    available = db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-    if available < questions:
-        flash(
-            f"Not enough {CATEGORIES[category]['label'].lower()} questions to publish the AI exam. "
-            "Add more questions first.",
-            "warning",
-        )
-        return redirect(url_for("exams"))
-    db.execute(
-        "INSERT INTO exams (title, description, category, questions) VALUES (?, ?, ?, ?)",
+    cur = db.execute(
+        """
+        INSERT INTO exams (title, description, category, questions, study_enabled, test_enabled, ai_prompt)
+        VALUES (?, ?, ?, ?, 1, 1, ?)
+        """,
         (
             payload["title"],
             payload["description"],
             category,
             questions,
+            prompt or None,
         ),
     )
+    exam_id = cur.lastrowid
+    ai_items = payload.get("items") or []
+    selected_items = ai_items[:questions]
+    for position, item in enumerate(selected_items, start=1):
+        answer_type = "text" if item.get("answer_type") == "text" else "mcq"
+        db.execute(
+            """
+            INSERT INTO exam_questions (exam_id, prompt, answer_type, correct_answer, wrong1, wrong2, wrong3, reference_answer, position, ai_source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                exam_id,
+                item.get("prompt") or "",
+                answer_type,
+                item.get("correct_answer"),
+                item.get("wrong1"),
+                item.get("wrong2"),
+                item.get("wrong3"),
+                item.get("reference_answer"),
+                position,
+                "ai",
+            ),
+        )
     db.commit()
-    flash(f"AI created exam '{payload['title']}'.", "success")
+    flash(
+        f"AI created exam '{payload['title']}' with {len(selected_items)} custom question(s).",
+        "success",
+    )
     return redirect(url_for("exams"))
 
 
@@ -1313,6 +1660,292 @@ def load_exam(exam_id):
     return exam
 
 
+@app.route("/exams/<int:exam_id>/manage")
+@admin_required
+def manage_exam(exam_id):
+    exam = load_exam(exam_id)
+    if not exam:
+        flash("Exam not found.", "warning")
+        return redirect(url_for("exams"))
+    db = get_db()
+    question_rows = fetch_exam_specific_question_rows(exam_id)
+    questions = [
+        {
+            "id": row["id"],
+            "prompt": row["prompt"],
+            "answer_type": row["answer_type"],
+            "correct_answer": row["correct_answer"],
+            "wrong1": row["wrong1"],
+            "wrong2": row["wrong2"],
+            "wrong3": row["wrong3"],
+            "reference_answer": row["reference_answer"],
+            "ai_source": row["ai_source"],
+            "position": row["position"],
+        }
+        for row in question_rows
+    ]
+    assignments = db.execute(
+        """
+        SELECT ea.*, u.username, u.email
+        FROM exam_assignments ea
+        JOIN users u ON u.id = ea.user_id
+        WHERE ea.exam_id = ?
+        ORDER BY u.username ASC
+        """,
+        (exam_id,),
+    ).fetchall()
+    stats = {
+        "specific": len(questions),
+        "general": count_general_questions().get(exam["category"], 0),
+    }
+    return render_template(
+        "exam_manage.html",
+        exam=exam,
+        questions=questions,
+        assignments=assignments,
+        stats=stats,
+        categories=CATEGORIES,
+    )
+
+
+@app.route("/exams/<int:exam_id>/settings", methods=["POST"])
+@admin_required
+def update_exam_settings(exam_id):
+    exam = load_exam(exam_id)
+    if not exam:
+        flash("Exam not found.", "warning")
+        return redirect(url_for("exams"))
+    try:
+        questions = int(request.form.get("questions", exam["questions"]))
+    except (TypeError, ValueError):
+        questions = exam["questions"]
+    questions = max(3, min(questions, 30))
+    study_enabled = 1 if request.form.get("study_enabled") else 0
+    test_enabled = 1 if request.form.get("test_enabled") else 0
+    is_active = 1 if request.form.get("is_active") else 0
+    db = get_db()
+    db.execute(
+        """
+        UPDATE exams
+        SET questions = ?, study_enabled = ?, test_enabled = ?, is_active = ?
+        WHERE id = ?
+        """,
+        (questions, study_enabled, test_enabled, is_active, exam_id),
+    )
+    db.commit()
+    flash("Exam settings updated.", "success")
+    return redirect(url_for("manage_exam", exam_id=exam_id))
+
+
+def _next_exam_question_position(exam_id):
+    db = get_db()
+    row = db.execute(
+        "SELECT COALESCE(MAX(position), 0) + 1 AS next_pos FROM exam_questions WHERE exam_id = ?",
+        (exam_id,),
+    ).fetchone()
+    return row["next_pos"] if row else 1
+
+
+@app.route("/exams/<int:exam_id>/questions", methods=["POST"])
+@admin_required
+def add_exam_question(exam_id):
+    exam = load_exam(exam_id)
+    if not exam:
+        flash("Exam not found.", "warning")
+        return redirect(url_for("exams"))
+    prompt = request.form.get("prompt", "").strip()
+    answer_type = request.form.get("answer_type", "mcq")
+    if answer_type not in {"mcq", "text"}:
+        answer_type = "mcq"
+    db = get_db()
+    position = _next_exam_question_position(exam_id)
+    if not prompt:
+        flash("Please provide a prompt.", "warning")
+        return redirect(url_for("manage_exam", exam_id=exam_id))
+    if answer_type == "text":
+        reference = request.form.get("reference_answer", "").strip()
+        if not reference:
+            flash("Text questions need a reference answer.", "warning")
+            return redirect(url_for("manage_exam", exam_id=exam_id))
+        correct_answer = request.form.get("correct_answer", "").strip() or reference
+        wrongs = (None, None, None)
+    else:
+        correct_answer = request.form.get("correct_answer", "").strip()
+        wrongs = [request.form.get(f"wrong{i}", "").strip() for i in range(1, 4)]
+        if not correct_answer or not all(wrongs):
+            flash("Multiple-choice questions need one correct and three incorrect options.", "warning")
+            return redirect(url_for("manage_exam", exam_id=exam_id))
+        reference = ""
+    db.execute(
+        """
+        INSERT INTO exam_questions
+        (exam_id, prompt, answer_type, correct_answer, wrong1, wrong2, wrong3, reference_answer, position, ai_source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            exam_id,
+            prompt,
+            answer_type,
+            correct_answer,
+            wrongs[0] if answer_type == "mcq" else None,
+            wrongs[1] if answer_type == "mcq" else None,
+            wrongs[2] if answer_type == "mcq" else None,
+            reference,
+            position,
+            "manual",
+        ),
+    )
+    db.commit()
+    flash("Added exam-specific question.", "success")
+    return redirect(url_for("manage_exam", exam_id=exam_id))
+
+
+@app.route("/exams/<int:exam_id>/questions/ai", methods=["POST"])
+@admin_required
+def add_exam_questions_ai(exam_id):
+    exam = load_exam(exam_id)
+    if not exam:
+        flash("Exam not found.", "warning")
+        return redirect(url_for("exams"))
+    prompt = request.form.get("prompt", "").strip()
+    try:
+        generated = generate_questions_with_prompt(exam["category"], prompt)
+    except RuntimeError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("manage_exam", exam_id=exam_id))
+    db = get_db()
+    position = _next_exam_question_position(exam_id)
+    inserted = 0
+    for item in generated:
+        if exam["category"] == "translation":
+            answer_type = "text"
+            question_prompt = item.get("prompt")
+            reference_answer = item.get("reference_answer")
+            correct_answer = reference_answer
+            wrongs = (None, None, None)
+        elif exam["category"] == "grammar":
+            answer_type = "mcq"
+            question_prompt = item.get("sentence_with_placeholder", "Complete the sentence.")
+            correct_answer = item.get("correct_answer")
+            wrongs = (item.get("wrong1"), item.get("wrong2"), item.get("wrong3"))
+            reference_answer = ""
+        else:
+            answer_type = "mcq"
+            word = item.get("word", "this word")
+            question_prompt = f"What is the best meaning of \"{word}\"?"
+            correct_answer = item.get("correct_answer")
+            wrongs = (item.get("wrong1"), item.get("wrong2"), item.get("wrong3"))
+            reference_answer = ""
+        if not question_prompt or not correct_answer:
+            continue
+        db.execute(
+            """
+            INSERT INTO exam_questions
+            (exam_id, prompt, answer_type, correct_answer, wrong1, wrong2, wrong3, reference_answer, position, ai_source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                exam_id,
+                question_prompt,
+                answer_type,
+                correct_answer,
+                wrongs[0],
+                wrongs[1],
+                wrongs[2],
+                reference_answer,
+                position,
+                "ai",
+            ),
+        )
+        position += 1
+        inserted += 1
+    db.commit()
+    flash(f"Added {inserted} AI question(s) to this exam.", "success")
+    return redirect(url_for("manage_exam", exam_id=exam_id))
+
+
+@app.route("/exams/<int:exam_id>/questions/<int:question_id>/delete", methods=["POST"])
+@admin_required
+def delete_exam_question(exam_id, question_id):
+    exam = load_exam(exam_id)
+    if not exam:
+        flash("Exam not found.", "warning")
+        return redirect(url_for("exams"))
+    db = get_db()
+    db.execute(
+        "DELETE FROM exam_questions WHERE id = ? AND exam_id = ?",
+        (question_id, exam_id),
+    )
+    db.commit()
+    flash("Removed exam question.", "info")
+    return redirect(url_for("manage_exam", exam_id=exam_id))
+
+
+@app.route("/exams/<int:exam_id>/assign", methods=["POST"])
+@admin_required
+def assign_exam_to_student(exam_id):
+    exam = load_exam(exam_id)
+    if not exam:
+        flash("Exam not found.", "warning")
+        return redirect(url_for("exams"))
+    identifier = request.form.get("identifier", "").strip()
+    if not identifier:
+        flash("Enter a student username or email.", "warning")
+        return redirect(url_for("manage_exam", exam_id=exam_id))
+    db = get_db()
+    user = db.execute(
+        "SELECT * FROM users WHERE username = ? OR email = ?",
+        (identifier, identifier),
+    ).fetchone()
+    if not user:
+        flash("No matching user found.", "warning")
+        return redirect(url_for("manage_exam", exam_id=exam_id))
+    can_study = 1 if request.form.get("can_study") else 0
+    can_test = 1 if request.form.get("can_test") else 0
+    existing = db.execute(
+        "SELECT id FROM exam_assignments WHERE exam_id = ? AND user_id = ?",
+        (exam_id, user["id"]),
+    ).fetchone()
+    if not can_study and not can_test:
+        db.execute(
+            "DELETE FROM exam_assignments WHERE exam_id = ? AND user_id = ?",
+            (exam_id, user["id"]),
+        )
+        db.commit()
+        flash(f"Removed {user['username']} from this exam.", "info")
+        return redirect(url_for("manage_exam", exam_id=exam_id))
+    if existing:
+        db.execute(
+            "UPDATE exam_assignments SET can_study = ?, can_test = ? WHERE id = ?",
+            (can_study, can_test, existing["id"]),
+        )
+    else:
+        db.execute(
+            "INSERT INTO exam_assignments (exam_id, user_id, can_study, can_test) VALUES (?, ?, ?, ?)",
+            (exam_id, user["id"], can_study, can_test),
+        )
+    db.commit()
+    flash(f"Shared exam with {user['username']}.", "success")
+    return redirect(url_for("manage_exam", exam_id=exam_id))
+
+
+@app.route("/exams/<int:exam_id>/assign/<int:assignment_id>/delete", methods=["POST"])
+@admin_required
+def delete_exam_assignment(exam_id, assignment_id):
+    exam = load_exam(exam_id)
+    if not exam:
+        flash("Exam not found.", "warning")
+        return redirect(url_for("exams"))
+    db = get_db()
+    db.execute(
+        "DELETE FROM exam_assignments WHERE id = ? AND exam_id = ?",
+        (assignment_id, exam_id),
+    )
+    db.commit()
+    flash("Removed assignment.", "info")
+    return redirect(url_for("manage_exam", exam_id=exam_id))
+
+
 @app.route("/exams/<int:exam_id>/take", methods=["GET", "POST"])
 @login_required
 def take_exam(exam_id):
@@ -1320,11 +1953,26 @@ def take_exam(exam_id):
     if not exam or not exam["is_active"]:
         flash("This exam is no longer available.", "warning")
         return redirect(url_for("exams"))
-
+    mode = request.args.get("mode", request.form.get("mode", "test") or "test").lower()
+    if mode not in {"study", "test"}:
+        mode = "test"
+    if mode == "study" and not exam["study_enabled"]:
+        flash("Study mode is disabled for this exam.", "warning")
+        return redirect(url_for("exams"))
+    if mode == "test" and not exam["test_enabled"]:
+        flash("This exam is not accepting test attempts right now.", "warning")
+        return redirect(url_for("exams"))
+    if not user_can_take_exam(exam, g.user, mode):
+        flash("This exam is not shared with you for that mode.", "warning")
+        return redirect(url_for("exams"))
     exam_state = session.get("exam")
-    if not exam_state or exam_state.get("exam_id") != exam_id:
+    if (
+        not exam_state
+        or exam_state.get("exam_id") != exam_id
+        or exam_state.get("mode") != mode
+    ):
         try:
-            start_exam_session(exam)
+            start_exam_session(exam, mode)
         except ValueError as exc:
             flash(str(exc), "warning")
             return redirect(url_for("exams"))
@@ -1346,7 +1994,7 @@ def take_exam(exam_id):
             selected = request.form.get("answer")
             if not selected:
                 flash("Please pick an option to continue.", "warning")
-                return redirect(url_for("take_exam", exam_id=exam_id))
+                return redirect(url_for("take_exam", exam_id=exam_id, mode=mode))
             is_correct = selected == question["correct_answer"]
             feedback = ""
             explanation = ""
@@ -1367,13 +2015,15 @@ def take_exam(exam_id):
         if exam_state["current"] >= exam_state["total"]:
             db = get_db()
             details_json = json.dumps(exam_state["answers"])
-            ai_summary = summarize_attempt_for_teacher(
-                exam_state["title"], exam_state["answers"]
-            )
+            ai_summary = None
+            if mode == "test":
+                ai_summary = summarize_attempt_for_teacher(
+                    exam_state["title"], exam_state["answers"]
+                )
             cursor = db.execute(
                 """
-                INSERT INTO exam_attempts (user_id, exam_id, score, total, details, ai_feedback, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO exam_attempts (user_id, exam_id, score, total, details, ai_feedback, mode, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     g.user["id"],
@@ -1382,6 +2032,7 @@ def take_exam(exam_id):
                     exam_state["total"],
                     details_json,
                     ai_summary,
+                    mode,
                     datetime.utcnow().isoformat(),
                 ),
             )
@@ -1393,6 +2044,7 @@ def take_exam(exam_id):
     return render_template(
         "exam_take.html",
         exam=exam,
+        mode=mode,
         exam_state=exam_state,
         question=exam_state["questions"][exam_state["current"]],
         current=exam_state["current"] + 1,
@@ -1485,22 +2137,27 @@ def start_quiz_session(category_key):
     }
 
 
-def start_exam_session(exam_row):
-    required = exam_row["questions"]
+def start_group_session(group_row):
+    questions = fetch_group_questions(group_row["id"])
+    if not questions:
+        raise ValueError("This study pack has no questions yet.")
+    session["group_quiz"] = {
+        "group_id": group_row["id"],
+        "group_name": group_row["name"],
+        "group_subject": group_row["subject"],
+        "questions": questions,
+        "current": 0,
+        "score": 0,
+        "answers": [],
+        "total": len(questions),
+    }
+
+
+def start_exam_session(exam_row, mode):
     try:
-        questions = fetch_random_questions(
-            exam_row["category"], limit=required
-        )
-    except ValueError:
-        raise ValueError(
-            "This exam does not have any questions yet. Ask your teacher to add them."
-        )
-    if len(questions) < required:
-        label = CATEGORIES.get(exam_row["category"], {}).get("label", "this category")
-        raise ValueError(
-            f"This exam needs {required} questions but only {len(questions)} "
-            f"exist in the {label.lower()} bank. Please add more questions."
-        )
+        questions = build_exam_question_set(exam_row)
+    except ValueError as exc:
+        raise ValueError(str(exc))
     session["exam"] = {
         "exam_id": exam_row["id"],
         "title": exam_row["title"],
@@ -1510,6 +2167,7 @@ def start_exam_session(exam_row):
         "score": 0,
         "answers": [],
         "total": len(questions),
+        "mode": mode,
     }
 
 
@@ -1594,6 +2252,120 @@ def quiz(category):
     )
 
 
+@app.route("/study-packs")
+@login_required
+def study_packs():
+    db = get_db()
+    if g.user["is_admin"]:
+        groups = db.execute(
+            """
+            SELECT g.*, COUNT(DISTINCT m.id) AS question_count,
+                   COUNT(DISTINCT qa.id) AS student_count
+            FROM question_groups g
+            LEFT JOIN question_group_memberships m ON m.group_id = g.id
+            LEFT JOIN question_group_assignments qa ON qa.group_id = g.id
+            ORDER BY g.created_at DESC
+            """
+        ).fetchall()
+    else:
+        groups = db.execute(
+            """
+            SELECT g.*, COUNT(DISTINCT m.id) AS question_count
+            FROM question_group_assignments qa
+            JOIN question_groups g ON g.id = qa.group_id
+            LEFT JOIN question_group_memberships m ON m.group_id = g.id
+            WHERE qa.user_id = ? AND qa.can_view = 1
+            GROUP BY g.id
+            ORDER BY g.created_at DESC
+            """,
+            (g.user["id"],),
+        ).fetchall()
+    return render_template("study_packs.html", groups=groups, categories=CATEGORIES)
+
+
+@app.route("/study-packs/<int:group_id>", methods=["GET", "POST"])
+@login_required
+def study_group(group_id):
+    group = load_question_group(group_id)
+    if not group:
+        flash("Study pack not found.", "warning")
+        return redirect(url_for("study_packs"))
+    if not user_can_view_group(group, g.user):
+        flash("You do not have access to that study pack.", "danger")
+        return redirect(url_for("study_packs"))
+    pack_state = session.get("group_quiz")
+    if not pack_state or pack_state.get("group_id") != group_id:
+        try:
+            start_group_session(group)
+        except ValueError as exc:
+            flash(str(exc), "warning")
+            return redirect(url_for("study_packs"))
+        pack_state = session["group_quiz"]
+    if request.method == "POST":
+        current_index = pack_state["current"]
+        question = pack_state["questions"][current_index]
+        if question["answer_type"] == "text":
+            selected = request.form.get("text_answer", "").strip()
+            evaluation = evaluate_text_answer(
+                question["prompt"], question["correct_answer"], selected
+            )
+            is_correct = evaluation["is_correct"]
+            feedback = evaluation.get("feedback")
+            explanation = evaluation.get("explanation")
+        else:
+            selected = request.form.get("answer")
+            if not selected:
+                flash("Please pick an option to continue.", "warning")
+                return redirect(url_for("study_group", group_id=group_id))
+            is_correct = selected == question["correct_answer"]
+            feedback = ""
+            explanation = ""
+        pack_state["answers"].append(
+            {
+                "question": question,
+                "selected": selected,
+                "is_correct": is_correct,
+                "feedback": feedback,
+                "explanation": explanation,
+            }
+        )
+        if is_correct:
+            pack_state["score"] += 1
+        pack_state["current"] += 1
+        session["group_quiz"] = pack_state
+        if pack_state["current"] >= pack_state["total"]:
+            db = get_db()
+            db.execute(
+                "INSERT INTO results (user_id, category, score, total, created_at) VALUES (?, ?, ?, ?, ?)",
+                (
+                    g.user["id"],
+                    group["subject"],
+                    pack_state["score"],
+                    pack_state["total"],
+                    datetime.utcnow().isoformat(),
+                ),
+            )
+            db.commit()
+            result_payload = dict(pack_state)
+            result_payload["category"] = group["subject"]
+            result_payload["group_name"] = group["name"]
+            result_payload["group_id"] = group_id
+            session["quiz_result"] = result_payload
+            session.pop("group_quiz", None)
+            return redirect(url_for("results"))
+    current_index = pack_state["current"]
+    question = pack_state["questions"][current_index]
+    return render_template(
+        "quiz.html",
+        category=group["subject"],
+        category_meta=CATEGORIES[group["subject"]],
+        question=question,
+        current=current_index + 1,
+        total=pack_state["total"],
+        group=group,
+    )
+
+
 @app.route("/results")
 @login_required
 def results():
@@ -1614,11 +2386,58 @@ def admin_questions():
     rows = db.execute(
         f"SELECT * FROM {CATEGORIES[category]['table']} ORDER BY id DESC"
     ).fetchall()
+    group_rows = db.execute(
+        """
+        SELECT g.*, 
+               COUNT(DISTINCT m.id) AS question_count,
+               COUNT(DISTINCT qa.id) AS student_count
+        FROM question_groups g
+        LEFT JOIN question_group_memberships m ON m.group_id = g.id
+        LEFT JOIN question_group_assignments qa ON qa.group_id = g.id
+        WHERE g.subject = ?
+        GROUP BY g.id
+        ORDER BY g.created_at DESC
+        """,
+        (category,),
+    ).fetchall()
+    membership_map = {}
+    assignment_map = {}
+    if group_rows:
+        group_ids = [row["id"] for row in group_rows]
+        placeholders = ",".join(["?"] * len(group_ids))
+        membership_rows = db.execute(
+            f"""
+            SELECT m.group_id, m.question_id, g.name
+            FROM question_group_memberships m
+            JOIN question_groups g ON g.id = m.group_id
+            WHERE m.group_id IN ({placeholders})
+            """,
+            group_ids,
+        ).fetchall()
+        for item in membership_rows:
+            membership_map.setdefault(item["question_id"], []).append(
+                {"name": item["name"], "group_id": item["group_id"]}
+            )
+        assignment_rows = db.execute(
+            f"""
+            SELECT qa.id, qa.group_id, u.username, u.email
+            FROM question_group_assignments qa
+            JOIN users u ON u.id = qa.user_id
+            WHERE qa.group_id IN ({placeholders})
+            ORDER BY u.username ASC
+            """,
+            group_ids,
+        ).fetchall()
+        for row in assignment_rows:
+            assignment_map.setdefault(row["group_id"], []).append(row)
     return render_template(
         "admin_questions.html",
         category=category,
         categories=CATEGORIES,
         rows=rows,
+        groups=group_rows,
+        memberships=membership_map,
+        group_assignments=assignment_map,
     )
 
 
@@ -1782,6 +2601,146 @@ def edit_question(category, question_id):
         categories=CATEGORIES,
         question=question,
     )
+
+
+@app.route("/admin/question-groups/<category>/create", methods=["POST"])
+@admin_required
+def create_question_group(category):
+    if category not in CATEGORIES:
+        abort(404)
+    name = request.form.get("name", "").strip()
+    description = request.form.get("description", "").strip()
+    ai_prompt = request.form.get("ai_prompt", "").strip()
+    if not name:
+        flash("Name your question group.", "warning")
+        return redirect(url_for("admin_questions", category=category))
+    db = get_db()
+    db.execute(
+        """
+        INSERT INTO question_groups (name, subject, description, ai_prompt, created_by)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (name, category, description, ai_prompt or None, g.user["id"]),
+    )
+    db.commit()
+    flash("Created new question group.", "success")
+    return redirect(url_for("admin_questions", category=category))
+
+
+@app.route("/admin/question-groups/<category>/assign-question", methods=["POST"])
+@admin_required
+def assign_question_to_group(category):
+    if category not in CATEGORIES:
+        abort(404)
+    try:
+        question_id = int(request.form.get("question_id", 0))
+    except (TypeError, ValueError):
+        question_id = 0
+    if not question_id:
+        flash("Select a question to assign.", "warning")
+        return redirect(url_for("admin_questions", category=category))
+    try:
+        group_id = int(request.form.get("group_id", 0))
+    except (TypeError, ValueError):
+        group_id = 0
+    group = load_question_group(group_id)
+    if not group or group["subject"] != category:
+        flash("Group not found for that subject.", "warning")
+        return redirect(url_for("admin_questions", category=category))
+    table = CATEGORIES[category]["table"]
+    db = get_db()
+    exists = db.execute(
+        f"SELECT id FROM {table} WHERE id = ?",
+        (question_id,),
+    ).fetchone()
+    if not exists:
+        flash("Question not found.", "warning")
+        return redirect(url_for("admin_questions", category=category))
+    db.execute(
+        """
+        INSERT OR IGNORE INTO question_group_memberships (group_id, category, question_id)
+        VALUES (?, ?, ?)
+        """,
+        (group_id, category, question_id),
+    )
+    db.commit()
+    flash("Question added to the group.", "success")
+    return redirect(url_for("admin_questions", category=category))
+
+
+@app.route("/admin/question-groups/<category>/remove-question", methods=["POST"])
+@admin_required
+def remove_question_from_group(category):
+    if category not in CATEGORIES:
+        abort(404)
+    try:
+        group_id = int(request.form.get("group_id", 0))
+        question_id = int(request.form.get("question_id", 0))
+    except (TypeError, ValueError):
+        group_id = 0
+        question_id = 0
+    if not group_id or not question_id:
+        flash("Missing group or question selection.", "warning")
+        return redirect(url_for("admin_questions", category=category))
+    db = get_db()
+    db.execute(
+        """
+        DELETE FROM question_group_memberships
+        WHERE group_id = ? AND question_id = ? AND category = ?
+        """,
+        (group_id, question_id, category),
+    )
+    db.commit()
+    flash("Removed question from group.", "info")
+    return redirect(url_for("admin_questions", category=category))
+
+
+@app.route("/admin/question-groups/<int:group_id>/share", methods=["POST"])
+@admin_required
+def share_question_group(group_id):
+    group = load_question_group(group_id)
+    category = request.form.get("category", "vocabulary")
+    if not group:
+        flash("Group not found.", "warning")
+        return redirect(url_for("admin_questions", category=category))
+    identifier = request.form.get("identifier", "").strip()
+    if not identifier:
+        flash("Enter a student username or email.", "warning")
+        return redirect(url_for("admin_questions", category=group["subject"]))
+    db = get_db()
+    user = db.execute(
+        "SELECT * FROM users WHERE username = ? OR email = ?",
+        (identifier, identifier),
+    ).fetchone()
+    if not user:
+        flash("No matching user found.", "warning")
+        return redirect(url_for("admin_questions", category=group["subject"]))
+    db.execute(
+        """
+        INSERT INTO question_group_assignments (group_id, user_id, can_view)
+        VALUES (?, ?, 1)
+        ON CONFLICT(group_id, user_id) DO UPDATE SET can_view = 1
+        """,
+        (group_id, user["id"]),
+    )
+    db.commit()
+    flash(f"Shared '{group['name']}' with {user['username']}.", "success")
+    return redirect(url_for("admin_questions", category=group["subject"]))
+
+
+@app.route("/admin/question-groups/<int:group_id>/revoke/<int:assignment_id>", methods=["POST"])
+@admin_required
+def revoke_question_group_assignment(group_id, assignment_id):
+    group = load_question_group(group_id)
+    category = group["subject"] if group else "vocabulary"
+    db = get_db()
+    db.execute(
+        "DELETE FROM question_group_assignments WHERE id = ? AND group_id = ?",
+        (assignment_id, group_id),
+    )
+    db.commit()
+    flash("Removed student from the group.", "info")
+    return redirect(url_for("admin_questions", category=category))
 
 
 @app.errorhandler(404)

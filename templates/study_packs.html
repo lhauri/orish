@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Study packs • Orish{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-head">
+        <div>
+            <p class="tag">Study packs</p>
+            <h2>Curated question groups</h2>
+            <p class="muted">Teachers bundle related questions into packs so you can drill the exact topics you need.</p>
+        </div>
+    </div>
+    {% if groups %}
+    <div class="exam-grid">
+        {% for group in groups %}
+        <div class="exam-card">
+            <p class="tag">{{ categories[group.subject].label }}</p>
+            <h3>{{ group.name }}</h3>
+            <p>{{ group.description or 'Quick targeted practice.' }}</p>
+            <p class="muted tiny">{{ group.question_count or 0 }} question{{ 's' if (group.question_count or 0) != 1 else '' }}</p>
+            <a class="btn primary" href="{{ url_for('study_group', group_id=group.id) }}">Practice pack</a>
+            {% if g.user['is_admin'] %}
+            <p class="muted tiny">{{ group.student_count or 0 }} student{{ 's' if (group.student_count or 0) != 1 else '' }} assigned</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        {% if g.user['is_admin'] %}
+        <p>No study packs yet.</p>
+        <p class="muted">Create a group from the question bank and share it with students.</p>
+        {% else %}
+        <p>No packs assigned yet.</p>
+        <p class="muted">Ask your teacher to assign you a study pack.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

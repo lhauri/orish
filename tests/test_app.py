@@ -200,12 +200,16 @@ def test_exam_without_enough_questions_is_blocked(client, create_user):
     with flask_app.app_context():
         db = get_db()
         exam_id = db.execute(
-            "INSERT INTO exams (title, description, category, questions, is_active) VALUES (?, ?, ?, ?, 1)",
+            "INSERT INTO exams (title, description, category, questions, is_active, study_enabled, test_enabled) VALUES (?, ?, ?, ?, 1, 1, 1)",
             ("Mega Exam", "Too big for the current bank", "vocabulary", 5),
         ).lastrowid
+        db.execute(
+            "INSERT INTO exam_assignments (exam_id, user_id, can_study, can_test) VALUES (?, ?, 1, 1)",
+            (exam_id, user_id),
+        )
         db.commit()
     with client.session_transaction() as session:
         session["user_id"] = user_id
     response = client.get(f"/exams/{exam_id}/take", follow_redirects=True)
     html = response.get_data(as_text=True).lower()
-    assert "does not have any questions yet" in html or "needs 5 questions" in html
+    assert "does not have any questions yet" in html or "needs 5 questions" in html or "no questions available" in html

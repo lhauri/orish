@@ -4,9 +4,12 @@
 <div class="card">
     <div class="results-head">
         <div>
-            <p class="tag">{{ attempt.title }}</p>
+            <p class="tag">{{ attempt.title }} • {{ attempt.mode|title }} mode</p>
             <h2>{{ attempt.score }} / {{ attempt.total }}</h2>
             <p class="muted">Taken on {{ attempt.created_at }}</p>
+            {% if attempt.mode == 'study' %}
+            <p class="muted tiny">This was a study session. Results are saved but not graded as an official test.</p>
+            {% endif %}
         </div>
         <a class="btn secondary" href="{{ url_for('exams') }}">Back to exams</a>
     </div>

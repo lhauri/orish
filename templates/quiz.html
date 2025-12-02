@@ -1,11 +1,20 @@
 {% extends 'base.html' %}
-{% block title %}{{ category_meta.label }} Quiz • Orish{% endblock %}
+{% block title %}{{ group.name if group else category_meta.label }} Quiz • Orish{% endblock %}
 {% block content %}
 <div class="card quiz-card">
     <div class="quiz-header">
         <div>
-            <p class="tag">{{ category_meta.label }}</p>
+            <p class="tag">
+                {% if group %}
+                {{ group.name }} • {{ category_meta.label }}
+                {% else %}
+                {{ category_meta.label }}
+                {% endif %}
+            </p>
             <h2>Question {{ current }} / {{ total }}</h2>
+            {% if group and group.description %}
+            <p class="muted tiny">{{ group.description }}</p>
+            {% endif %}
         </div>
         <div class="progress">
             <div class="progress-bar" style="width: {{ (current / total) * 100 }}%"></div>

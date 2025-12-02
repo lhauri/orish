@@ -4,14 +4,20 @@
 <div class="card quiz-card">
     <div class="quiz-header">
         <div>
-            <p class="tag">{{ categories[exam.category].label }}</p>
+            <p class="tag">{{ categories[exam.category].label }} • {{ mode|title }} mode</p>
             <h2>{{ exam.title }} · Question {{ current }} / {{ total }}</h2>
+            {% if mode == 'study' %}
+            <p class="muted tiny">Study attempts are marked as practice in reporting.</p>
+            {% else %}
+            <p class="muted tiny">Test attempts are shared with teachers.</p>
+            {% endif %}
         </div>
         <div class="progress">
             <div class="progress-bar" style="width: {{ (current / total) * 100 }}%"></div>
         </div>
     </div>
     <form method="post" class="quiz-form">
+        <input type="hidden" name="mode" value="{{ mode }}">
         <p class="prompt">{{ question.prompt }}</p>
         {% if question.answer_type == 'text' %}
         <textarea class="text-answer" name="text_answer" placeholder="Write your response" required></textarea>

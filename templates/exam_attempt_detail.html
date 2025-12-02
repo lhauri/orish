@@ -2,7 +2,7 @@
 {% block title %}Attempt • Orish{% endblock %}
 {% block content %}
 <div class="card">
-    <p class="tag">{{ attempt.title }}</p>
+    <p class="tag">{{ attempt.title }} • {{ attempt.mode|title }} mode</p>
     <h2>{{ attempt.username }} · {{ attempt.score }} / {{ attempt.total }}</h2>
     <p class="muted">{{ attempt.email }} • {{ attempt.created_at }}</p>
     {% if attempt.ai_feedback %}
