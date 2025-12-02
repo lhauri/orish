@@ -14,6 +14,7 @@ import random
 import re
 import sqlite3
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from difflib import SequenceMatcher
 from functools import wraps
@@ -146,21 +147,39 @@ def evaluate_text_answer(prompt, reference, student_answer):
 
 def finalize_text_answers(answer_records):
     """Run AI grading for any pending text answers at the end of a session."""
+    pending = [
+        (index, record)
+        for index, record in enumerate(answer_records)
+        if record.get("needs_ai")
+    ]
+    if not pending:
+        return 0
+
     extra_correct = 0
-    for record in answer_records:
-        if not record.get("needs_ai"):
-            continue
-        evaluation = evaluate_text_answer(
-            record["question"]["prompt"],
-            record["question"]["correct_answer"],
-            record.get("selected", ""),
+
+    def evaluate_entry(entry):
+        _, record = entry
+        return (
+            entry[0],
+            evaluate_text_answer(
+                record["question"]["prompt"],
+                record["question"]["correct_answer"],
+                record.get("selected", ""),
+            ),
         )
-        record["is_correct"] = evaluation["is_correct"]
-        record["feedback"] = evaluation.get("feedback")
-        record["explanation"] = evaluation.get("explanation")
-        record.pop("needs_ai", None)
-        if record["is_correct"]:
-            extra_correct += 1
+
+    max_workers = min(6, len(pending))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {executor.submit(evaluate_entry, entry): entry[0] for entry in pending}
+        for future in as_completed(future_map):
+            idx, evaluation = future.result()
+            record = answer_records[idx]
+            record["is_correct"] = evaluation["is_correct"]
+            record["feedback"] = evaluation.get("feedback")
+            record["explanation"] = evaluation.get("explanation")
+            record.pop("needs_ai", None)
+            if record["is_correct"]:
+                extra_correct += 1
     return extra_correct
 
 
