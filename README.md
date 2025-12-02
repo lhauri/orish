@@ -1,6 +1,6 @@
 # Orish
 
-Orish is a Flask-based learning companion for English classrooms. It bundles curated question banks, mock exams, and optional DeepSeek-powered AI helpers so students can practice vocabulary, grammar, reading, and translation in one workspace. When the AI service is unreachable, Orish automatically supplies handcrafted fallback content so lessons can continue without interruption.
+Orish is a Flask-based learning companion for English classrooms. It bundles curated question banks, mock exams, and optional DeepSeek-powered AI helpers so students can practice vocabulary, grammar, and translation in one workspace. When the AI service is unreachable, Orish automatically supplies handcrafted fallback content so lessons can continue without interruption.
 
 ## Feature highlights
 

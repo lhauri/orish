@@ -170,3 +170,26 @@ def test_admin_delete_user_requires_confirmation(client, create_user):
     with flask_app.app_context():
         db = get_db()
         assert db.execute("SELECT 1 FROM users WHERE id = ?", (learner_id,)).fetchone() is None
+
+
+def test_admin_can_create_student_via_users_page(client, create_user):
+    admin_id = create_user(username="headteacher", email="headteacher@example.com", password="teachpass", is_admin=True)
+    with client.session_transaction() as session:
+        session["user_id"] = admin_id
+    response = client.post(
+        "/admin/users",
+        data={
+            "action": "create",
+            "username": "freshstudent",
+            "email": "fresh@student.com",
+            "password": "freshpass1",
+            "role": "student",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert "Created student account for freshstudent" in response.get_data(as_text=True)
+    with flask_app.app_context():
+        db = get_db()
+        row = db.execute("SELECT is_admin FROM users WHERE username = ?", ("freshstudent",)).fetchone()
+        assert row is not None and row["is_admin"] == 0

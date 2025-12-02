@@ -11,12 +11,6 @@
             <div class="progress-bar" style="width: {{ (current / total) * 100 }}%"></div>
         </div>
     </div>
-    {% if question.meta.title %}
-    <article class="reading">
-        <h4>{{ question.meta.title }}</h4>
-        <p>{{ question.meta.text }}</p>
-    </article>
-    {% endif %}
     <form method="post" class="quiz-form">
         <p class="prompt">{{ question.prompt }}</p>
         {% if question.answer_type == 'text' %}

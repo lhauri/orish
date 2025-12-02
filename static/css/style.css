@@ -739,13 +739,6 @@ select,
     flex-wrap: wrap;
 }
 
-.reading {
-    background: rgba(236, 244, 255, 0.9);
-    padding: 1rem;
-    border-radius: 18px;
-    margin-bottom: 1rem;
-}
-
 .option {
     display: flex;
     align-items: center;
@@ -792,6 +785,10 @@ select,
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 1.5rem;
+}
+
+.admin-form.wide {
+    grid-column: 1 / -1;
 }
 
 .admin-list li {

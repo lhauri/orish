@@ -165,21 +165,6 @@ QUESTION_SCHEMAS = {
             "wrong3",
         ],
     },
-    "reading": {
-        "description": (
-            "Return JSON array of objects with keys title, text (<=120 words), "
-            "question, correct_answer, wrong1, wrong2, wrong3."
-        ),
-        "columns": [
-            "title",
-            "text",
-            "question",
-            "correct_answer",
-            "wrong1",
-            "wrong2",
-            "wrong3",
-        ],
-    },
     "translation": {
         "description": "Return JSON array of objects with keys prompt and reference_answer.",
         "columns": ["prompt", "reference_answer"],
@@ -229,26 +214,6 @@ FALLBACK_GENERATED_QUESTIONS = {
             "wrong3": "leaves",
         },
     ],
-    "reading": [
-        {
-            "title": "Community Garden",
-            "text": "Volunteers meet each Saturday to water young plants and teach neighbors how to grow herbs on balconies.",
-            "question": "Why do people join the Saturday meetups?",
-            "correct_answer": "To care for plants and learn gardening tips",
-            "wrong1": "To compete in races",
-            "wrong2": "To sell vegetables for profit",
-            "wrong3": "To watch cooking shows",
-        },
-        {
-            "title": "Study Buddy",
-            "text": "Marco and Lani read aloud for fifteen minutes, then quiz each other on new expressions they highlighted.",
-            "question": "How do Marco and Lani review vocabulary?",
-            "correct_answer": "By quizzing each other after reading",
-            "wrong1": "By drawing the words",
-            "wrong2": "By sending text messages",
-            "wrong3": "By skipping the hard words",
-        },
-    ],
     "translation": [
         {
             "prompt": "Translate into English: \"Ich lerne jeden Tag neue Wörter.\"",
@@ -267,12 +232,6 @@ FALLBACK_EXAM_TEMPLATES = [
         "description": "Quick assessment drawn from the built-in bank.",
         "category": "vocabulary",
         "questions": 5,
-    },
-    {
-        "title": "Reading Pulse",
-        "description": "Short comprehension drill with automatic grading.",
-        "category": "reading",
-        "questions": 4,
     },
     {
         "title": "Grammar Tune-Up",
@@ -577,7 +536,7 @@ def generate_questions_with_prompt(category, prompt):
 def generate_exam_from_prompt(prompt):
     instructions = (
         "Create a single exam descriptor as JSON with keys title, description, "
-        "category (vocabulary/grammar/reading/translation), questions (int between 3 and 10). "
+        "category (vocabulary/grammar/translation), questions (int between 3 and 10). "
         "No extra text."
     )
     use_fallback = False
@@ -698,13 +657,6 @@ CATEGORIES = {
         ].replace("__", "____"),
         "answer_type": "mcq",
     },
-    "reading": {
-        "label": "Reading",
-        "icon": "file-text",
-        "table": "questions_reading",
-        "prompt_builder": lambda row: row["question"],
-        "answer_type": "mcq",
-    },
     "translation": {
         "label": "Translation",
         "icon": "languages",
@@ -754,17 +706,6 @@ def init_tables():
         CREATE TABLE IF NOT EXISTS questions_grammar (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sentence_with_placeholder TEXT NOT NULL,
-            correct_answer TEXT NOT NULL,
-            wrong1 TEXT NOT NULL,
-            wrong2 TEXT NOT NULL,
-            wrong3 TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS questions_reading (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            text TEXT NOT NULL,
-            question TEXT NOT NULL,
             correct_answer TEXT NOT NULL,
             wrong1 TEXT NOT NULL,
             wrong2 TEXT NOT NULL,
@@ -902,11 +843,6 @@ def fetch_random_questions(category_key, limit=5):
         elif category_key == "grammar":
             question["meta"] = {
                 "sentence": row["sentence_with_placeholder"].replace("__", "____")
-            }
-        elif category_key == "reading":
-            question["meta"] = {
-                "title": row["title"],
-                "text": row["text"],
             }
         else:
             question["meta"] = {}
@@ -1057,6 +993,29 @@ def admin_users():
     confirm_user_id = None
     if request.method == "POST":
         action = request.form.get("action", "promote")
+        if action == "create":
+            username = request.form.get("username", "").strip()
+            email = request.form.get("email", "").strip()
+            password = request.form.get("password", "")
+            role = request.form.get("role", "student")
+            if not username or not email or not password:
+                flash("All fields are required to create an account.", "warning")
+                return redirect(url_for("admin_users"))
+            if len(password) < 8:
+                flash("Password must be at least 8 characters.", "warning")
+                return redirect(url_for("admin_users"))
+            is_admin = 1 if role == "teacher" else 0
+            try:
+                db.execute(
+                    "INSERT INTO users (username, email, password_hash, is_admin) VALUES (?, ?, ?, ?)",
+                    (username, email, generate_password_hash(password), is_admin),
+                )
+                db.commit()
+                flash(f"Created {'teacher' if is_admin else 'student'} account for {username}.", "success")
+            except sqlite3.IntegrityError:
+                flash("Username or email already exists.", "danger")
+            return redirect(url_for("admin_users"))
+
         try:
             target_id = int(request.form.get("user_id"))
         except (TypeError, ValueError):
@@ -1118,8 +1077,13 @@ def admin_users():
     users = db.execute(
         "SELECT id, username, email, is_admin FROM users ORDER BY username ASC"
     ).fetchall()
+    teacher_rows = [user for user in users if user["is_admin"]]
+    student_rows = [user for user in users if not user["is_admin"]]
     return render_template(
-        "admin_users.html", users=users, confirm_user_id=confirm_user_id
+        "admin_users.html",
+        teachers=teacher_rows,
+        students=student_rows,
+        confirm_user_id=confirm_user_id,
     )
 
 
@@ -1642,17 +1606,6 @@ def add_question(category):
                 f"INSERT INTO {table} (sentence_with_placeholder, correct_answer, wrong1, wrong2, wrong3) VALUES (?, ?, ?, ?, ?)",
                 (sentence, correct, wrongs[0], wrongs[1], wrongs[2]),
             )
-    elif category == "reading":
-        title = request.form.get("title", "").strip()
-        text = request.form.get("text", "").strip()
-        question_text = request.form.get("question", "").strip()
-        correct = request.form.get("correct_answer", "").strip()
-        wrongs = [request.form.get(f"wrong{i}", "").strip() for i in range(1, 4)]
-        if title and text and question_text and correct and all(wrongs):
-            db.execute(
-                f"INSERT INTO {table} (title, text, question, correct_answer, wrong1, wrong2, wrong3) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (title, text, question_text, correct, wrongs[0], wrongs[1], wrongs[2]),
-            )
     else:  # translation
         prompt = request.form.get("prompt", "").strip()
         reference = request.form.get("reference_answer", "").strip()
@@ -1696,19 +1649,6 @@ def generate_question_ai(category):
                 f"INSERT INTO {table} (sentence_with_placeholder, correct_answer, wrong1, wrong2, wrong3) VALUES (?, ?, ?, ?, ?)",
                 (
                     item["sentence_with_placeholder"],
-                    item["correct_answer"],
-                    item["wrong1"],
-                    item["wrong2"],
-                    item["wrong3"],
-                ),
-            )
-        elif category == "reading":
-            db.execute(
-                f"INSERT INTO {table} (title, text, question, correct_answer, wrong1, wrong2, wrong3) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (
-                    item["title"],
-                    item["text"],
-                    item["question"],
                     item["correct_answer"],
                     item["wrong1"],
                     item["wrong2"],
@@ -1778,21 +1718,6 @@ def edit_question(category, question_id):
             )
             db.execute(
                 f"UPDATE {table} SET sentence_with_placeholder=?, correct_answer=?, wrong1=?, wrong2=?, wrong3=? WHERE id = ?",
-                fields,
-            )
-        elif category == "reading":
-            fields = (
-                request.form.get("title", "").strip(),
-                request.form.get("text", "").strip(),
-                request.form.get("question", "").strip(),
-                request.form.get("correct_answer", "").strip(),
-                request.form.get("wrong1", "").strip(),
-                request.form.get("wrong2", "").strip(),
-                request.form.get("wrong3", "").strip(),
-                question_id,
-            )
-            db.execute(
-                f"UPDATE {table} SET title=?, text=?, question=?, correct_answer=?, wrong1=?, wrong2=?, wrong3=? WHERE id = ?",
                 fields,
             )
         else:  # translation

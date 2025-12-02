@@ -8,10 +8,6 @@
         <label>Word<input name="word" value="{{ question['word'] }}" required></label>
         {% elif category == 'grammar' %}
         <label>Sentence<textarea name="sentence" required>{{ question['sentence_with_placeholder'] }}</textarea></label>
-        {% elif category == 'reading' %}
-        <label>Title<input name="title" value="{{ question['title'] }}" required></label>
-        <label>Text<textarea name="text" rows="4" required>{{ question['text'] }}</textarea></label>
-        <label>Question<input name="question" value="{{ question['question'] }}" required></label>
         {% else %}
         <label>Prompt<textarea name="prompt" rows="4" required>{{ question['prompt'] }}</textarea></label>
         <label>Reference answer<textarea name="reference_answer" rows="3" required>{{ question['reference_answer'] }}</textarea></label>

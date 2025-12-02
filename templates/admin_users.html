@@ -6,68 +6,130 @@
         <div>
             <p class="eyebrow">Teacher controls</p>
             <h1>User roles</h1>
-            <p class="muted">Promote active learners to teacher accounts or switch them back to student access.</p>
+            <p class="muted">Promote active learners, invite new ones, and keep teacher tools in one place.</p>
         </div>
-        <a class="btn secondary" href="{{ url_for('dashboard') }}">Back to dashboard</a>
+        <div class="admin-actions">
+            <a class="btn secondary" href="{{ url_for('admin_questions') }}">Question bank</a>
+            <a class="btn secondary" href="{{ url_for('exams') }}">Exam studio</a>
+        </div>
     </div>
-    <div class="table-scroll">
-        <table class="attempt-table user-table">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th class="actions-col">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for user in users %}
-                <tr>
-                    <td>{{ user.username }}</td>
-                    <td>{{ user.email }}</td>
-                    <td>
-                        {% if user.is_admin %}
-                        <span class="role-tag teacher">Teacher</span>
-                        {% else %}
-                        <span class="role-tag student">Student</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <div class="admin-actions">
-                            {% if not user.is_admin %}
-                            <form method="post">
-                                <input type="hidden" name="user_id" value="{{ user.id }}">
-                                <button class="btn primary" name="action" value="promote">Make teacher</button>
-                            </form>
-                            {% else %}
-                            <form method="post">
-                                <input type="hidden" name="user_id" value="{{ user.id }}">
-                                <button class="btn ghost" name="action" value="demote" {% if user.id == g.user['id'] %}disabled{% endif %}>Set as student</button>
-                            </form>
-                            {% endif %}
-                            {% if user.id != g.user['id'] %}
+    <div class="admin-body">
+        <section class="admin-form wide">
+            <h3>Create a new account</h3>
+            <form method="post">
+                <input type="hidden" name="action" value="create">
+                <div class="grid two">
+                    <label>Username<input name="username" required></label>
+                    <label>Email<input type="email" name="email" required></label>
+                </div>
+                <div class="grid two">
+                    <label>Password<input type="password" name="password" minlength="8" required></label>
+                    <label>Role
+                        <select name="role">
+                            <option value="student">Student</option>
+                            <option value="teacher">Teacher</option>
+                        </select>
+                    </label>
+                </div>
+                <button class="btn primary">Create account</button>
+            </form>
+        </section>
+        <section class="admin-list">
+            <h3>Teachers</h3>
+            <div class="table-scroll">
+                <table class="attempt-table user-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th class="actions-col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in teachers %}
+                        <tr>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>
+                                <div class="admin-actions">
+                                    <form method="post">
+                                        <input type="hidden" name="user_id" value="{{ user.id }}">
+                                        <button class="btn ghost" name="action" value="demote" {% if user.id == g.user['id'] %}disabled{% endif %}>Set as student</button>
+                                    </form>
+                                    {% if user.id != g.user['id'] %}
+                                        {% if confirm_user_id == user.id %}
+                                        <form method="post">
+                                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                                            <button class="btn danger" name="action" value="delete">Confirm delete</button>
+                                        </form>
+                                        <a class="btn ghost" href="{{ url_for('admin_users') }}">Cancel</a>
+                                        {% else %}
+                                        <form method="post">
+                                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                                            <button class="btn danger ghost" name="action" value="prepare_delete">Delete</button>
+                                        </form>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
                                 {% if confirm_user_id == user.id %}
-                                <form method="post">
-                                    <input type="hidden" name="user_id" value="{{ user.id }}">
-                                    <button class="btn danger" name="action" value="delete">Confirm delete</button>
-                                </form>
-                                <a class="btn ghost" href="{{ url_for('admin_users') }}">Cancel</a>
-                                {% else %}
-                                <form method="post">
-                                    <input type="hidden" name="user_id" value="{{ user.id }}">
-                                    <button class="btn danger ghost" name="action" value="prepare_delete">Delete</button>
-                                </form>
+                                <p class="confirm-note">Deleting {{ user.username }} removes all quiz and exam data.</p>
                                 {% endif %}
-                            {% endif %}
-                        </div>
-                        {% if confirm_user_id == user.id %}
-                        <p class="confirm-note">Deleting {{ user.username }} removes all quiz and exam data.</p>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3">No teacher accounts yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <section class="admin-list">
+            <h3>Students</h3>
+            <div class="table-scroll">
+                <table class="attempt-table user-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th class="actions-col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in students %}
+                        <tr>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>
+                                <div class="admin-actions">
+                                    <form method="post">
+                                        <input type="hidden" name="user_id" value="{{ user.id }}">
+                                        <button class="btn primary" name="action" value="promote">Make teacher</button>
+                                    </form>
+                                    {% if confirm_user_id == user.id %}
+                                    <form method="post">
+                                        <input type="hidden" name="user_id" value="{{ user.id }}">
+                                        <button class="btn danger" name="action" value="delete">Confirm delete</button>
+                                    </form>
+                                    <a class="btn ghost" href="{{ url_for('admin_users') }}">Cancel</a>
+                                    {% else %}
+                                    <form method="post">
+                                        <input type="hidden" name="user_id" value="{{ user.id }}">
+                                        <button class="btn danger ghost" name="action" value="prepare_delete">Delete</button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                                {% if confirm_user_id == user.id %}
+                                <p class="confirm-note">Deleting {{ user.username }} removes all quiz and exam data.</p>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3">No students yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </div>
 </section>
 {% endblock %}

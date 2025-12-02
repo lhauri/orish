@@ -33,99 +33,6 @@ GRAMMAR_QUESTIONS = [
     ("She sings better ___ anyone I know.", "than", "then", "that", "as"),
 ]
 
-READING_QUESTIONS = [
-    (
-        "Morning Routine",
-        "Lena wakes up early each day to go for a short run before school. She believes the quiet streets and cool air help her focus for the rest of the day.",
-        "Why does Lena go for a run in the morning?",
-        "It helps her focus",
-        "She dislikes school",
-        "Her friends join her",
-        "It is required by her coach",
-    ),
-    (
-        "Library Visit",
-        "The town library introduced a new reading corner with soft chairs and gentle lighting. Many students now spend their afternoons there completing assignments.",
-        "What attracts students to the new library corner?",
-        "Comfortable environment",
-        "Free snacks",
-        "Online games",
-        "Faster internet",
-    ),
-    (
-        "Science Club",
-        "GIBB's science club meets every Thursday to work on experiments. Last week they built paper bridges to test how much weight each could hold.",
-        "What was last week's experiment about?",
-        "Building paper bridges",
-        "Studying planets",
-        "Learning new languages",
-        "Painting posters",
-    ),
-    (
-        "Music Practice",
-        "Aaron practices the piano for thirty minutes daily. He tracks his improvement by recording one piece each week.",
-        "How does Aaron measure his progress?",
-        "By recording pieces",
-        "By taking tests",
-        "By asking his friends",
-        "By buying new music",
-    ),
-    (
-        "Garden Project",
-        "Students volunteered to plant herbs in the school garden to support the culinary class.",
-        "Why are students planting herbs?",
-        "To support culinary class",
-        "To win a competition",
-        "To earn money",
-        "To decorate classrooms",
-    ),
-    (
-        "Drama Club",
-        "The drama club is rehearsing a modern play about teamwork and honesty.",
-        "What is the theme of the play?",
-        "Teamwork and honesty",
-        "Science fiction",
-        "Historical war",
-        "Adventure on the sea",
-    ),
-    (
-        "Field Trip",
-        "Next month, the English class will visit a local newspaper to learn about interviewing techniques.",
-        "Where is the class going?",
-        "A local newspaper",
-        "An art museum",
-        "A bakery",
-        "A sports arena",
-    ),
-    (
-        "Study Group",
-        "Five friends meet every Sunday evening to review vocabulary using flashcards they designed together.",
-        "How do the friends review vocabulary?",
-        "Using flashcards",
-        "By watching movies",
-        "By playing soccer",
-        "By listening to music",
-    ),
-    (
-        "Test Prep",
-        "Ms. Rivera suggests that students read short news articles daily to strengthen comprehension.",
-        "What does Ms. Rivera recommend?",
-        "Reading news articles",
-        "Writing poetry",
-        "Practicing speeches",
-        "Attending concerts",
-    ),
-    (
-        "Debate Team",
-        "The debate team practices how to support ideas with clear evidence before each tournament.",
-        "What skill are they practicing?",
-        "Using clear evidence",
-        "Drawing diagrams",
-        "Cooking meals",
-        "Fixing computers",
-    ),
-]
-
 TRANSLATION_QUESTIONS = [
     ("Translate into English: \"Ich freue mich auf das Wochenende.\"", "I am looking forward to the weekend."),
     ("Translate into English: \"Wir bereiten uns auf die Prüfung vor.\"", "We are preparing for the exam."),
@@ -137,7 +44,6 @@ TRANSLATION_QUESTIONS = [
 EXAMS = [
     ("Vocabulary Pulse", "Mixed-choice warm up", "vocabulary", 5, 1),
     ("Grammar Sprint", "Fill in the blanks quickly", "grammar", 5, 1),
-    ("Reading Focus", "Short passages with comprehension", "reading", 5, 1),
     ("Translation Check", "AI-evaluated translations", "translation", 5, 1),
 ]
 
@@ -227,23 +133,6 @@ def main():
                 ],
             )
             print("Seeded grammar questions")
-
-        if db.execute("SELECT COUNT(*) FROM questions_reading").fetchone()[0] == 0:
-            seed_table(
-                db,
-                "questions_reading",
-                READING_QUESTIONS,
-                [
-                    "title",
-                    "text",
-                    "question",
-                    "correct_answer",
-                    "wrong1",
-                    "wrong2",
-                    "wrong3",
-                ],
-            )
-            print("Seeded reading questions")
 
         if db.execute("SELECT COUNT(*) FROM questions_translation").fetchone()[0] == 0:
             seed_table(

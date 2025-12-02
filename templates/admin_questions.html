@@ -31,10 +31,6 @@
                 <label>Word<input name="word" required></label>
                 {% elif category == 'grammar' %}
                 <label>Sentence (use __ for blank)<textarea name="sentence" required></textarea></label>
-                {% elif category == 'reading' %}
-                <label>Title<input name="title" required></label>
-                <label>Reading text<textarea name="text" rows="4" required></textarea></label>
-                <label>Question<input name="question" required></label>
                 {% else %}
                 <label>Prompt<textarea name="prompt" rows="4" required></textarea></label>
                 <label>Reference answer<textarea name="reference_answer" rows="3" required></textarea></label>
@@ -58,9 +54,6 @@
                         <strong>{{ row['word'] }}</strong>
                         {% elif category == 'grammar' %}
                         <strong>{{ row['sentence_with_placeholder'] }}</strong>
-                        {% elif category == 'reading' %}
-                        <strong>{{ row['title'] }}</strong>
-                        <p class="muted">{{ row['question'] }}</p>
                         {% else %}
                         <strong>{{ row['prompt']|truncate(60, True) }}</strong>
                         <p class="muted">Ref: {{ row['reference_answer']|truncate(60, True) }}</p>

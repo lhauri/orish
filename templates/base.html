@@ -39,16 +39,20 @@
                 <i data-lucide="book"></i>
                 <span>Grammar</span>
             </a>
-            <a href="{{ url_for('quiz', category='reading') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'quiz' and request.view_args and request.view_args.get('category') == 'reading' else 'false' }}">
-                <i data-lucide="file-text"></i>
-                <span>Reading</span>
-            </a>
             <a href="{{ url_for('quiz', category='translation') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'quiz' and request.view_args and request.view_args.get('category') == 'translation' else 'false' }}">
                 <i data-lucide="languages"></i>
                 <span>Translation</span>
             </a>
             {% if g.user %}
             {% if g.user['is_admin'] %}
+            <a href="{{ url_for('admin_questions') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'admin_questions' else 'false' }}">
+                <i data-lucide="library"></i>
+                <span>Question bank</span>
+            </a>
+            <a href="{{ url_for('exams') }}" class="nav-item" data-active="{{ 'true' if request.endpoint in ['exams', 'create_exam'] else 'false' }}">
+                <i data-lucide="trophy"></i>
+                <span>Exam studio</span>
+            </a>
             <a href="{{ url_for('admin_users') }}" class="nav-item" data-active="{{ 'true' if request.endpoint == 'admin_users' else 'false' }}">
                 <i data-lucide="users"></i>
                 <span>Manage users</span>
