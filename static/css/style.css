@@ -384,6 +384,13 @@ a {
     color: var(--primary);
 }
 
+.btn.outline {
+    background: transparent;
+    color: var(--primary);
+    border: 1px solid rgba(79, 70, 229, 0.4);
+    box-shadow: none;
+}
+
 .btn.danger {
     background: #fee2e2;
     color: #991b1b;
@@ -1262,18 +1269,32 @@ select,
 
 .exam-actions {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
+    flex-direction: column;
+    gap: 0.65rem;
 }
 
 .exam-actions .btn {
     flex: 1;
     text-align: center;
+    border-radius: 16px;
+    padding: 0.85rem 1rem;
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
 }
 
 .exam-actions .btn.disabled {
     pointer-events: none;
     opacity: 0.6;
+}
+
+.exam-actions .btn.ghost {
+    background: rgba(255, 255, 255, 0.65);
+    border: 1px solid rgba(79, 70, 229, 0.2);
+}
+
+.exam-actions .btn.primary {
+    background: linear-gradient(120deg, #6366f1, #8b5cf6);
+    border: none;
 }
 
 .exam-card small {
@@ -1305,6 +1326,26 @@ select,
     padding: 0.35rem 0.85rem;
     font-size: 0.85rem;
     margin-top: 0.5rem;
+}
+
+.assigned-pill {
+    padding: 0.3rem 0.7rem;
+    background: rgba(79, 70, 229, 0.1);
+    border-radius: 999px;
+    display: inline-block;
+}
+
+.exam-admin-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.exam-admin-actions .btn {
+    flex: 1;
+    text-align: center;
+    border-radius: 14px;
+    padding: 0.7rem 0.8rem;
 }
 
 .instructions-card {

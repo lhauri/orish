@@ -58,6 +58,9 @@
                     <p class="muted tiny">{{ exam.questions }} question goal</p>
                     <p class="muted tiny">{{ exam.specific_questions }} custom • {{ exam.general_questions }} bank</p>
                 </div>
+                {% if g.user['is_admin'] %}
+                <p class="muted tiny assigned-pill">Assigned to {{ exam.assigned_count }} student{{ 's' if exam.assigned_count != 1 else '' }}</p>
+                {% endif %}
                 {% if exam.has_questions %}
                 <p class="status-note ready">Ready for students</p>
                 {% else %}
@@ -75,12 +78,9 @@
                     <a class="btn primary {% if not test_allowed %}disabled{% endif %}" {% if test_allowed %}href="{{ url_for('take_exam', exam_id=exam.id, mode='test') }}"{% else %}aria-disabled="true"{% endif %}>Test mode</a>
                 </div>
                 {% if g.user['is_admin'] %}
-                <div class="admin-note">
-                    <p class="tiny">{{ exam.assigned_count }} student{{ 's' if exam.assigned_count != 1 else '' }} currently assigned.</p>
-                    <div class="admin-actions">
-                        <a class="btn secondary" href="{{ url_for('manage_exam', exam_id=exam.id) }}">Manage</a>
-                        <a class="btn ghost" href="{{ url_for('admin_questions', category=exam.category) }}">Question bank</a>
-                    </div>
+                <div class="exam-admin-actions">
+                    <a class="btn outline" href="{{ url_for('manage_exam', exam_id=exam.id) }}">Manage exam</a>
+                    <a class="btn outline" href="{{ url_for('admin_questions', category=exam.category) }}">Question bank</a>
                 </div>
                 {% endif %}
             </div>
