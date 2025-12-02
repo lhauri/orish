@@ -60,7 +60,7 @@ def test_legal_page_mentions_privacy_and_contact(client):
     response = client.get("/legal")
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert "Datenschutzerklärung" in html
+    assert "Privacy policy" in html
     assert "privacy@orish.app" in html
 
 

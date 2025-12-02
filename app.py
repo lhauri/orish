@@ -243,107 +243,101 @@ FALLBACK_EXAM_TEMPLATES = [
 LEGAL_SECTIONS = [
     {
         "id": "terms",
-        "title": "Nutzungsbedingungen",
-        "eyebrow": "Terms of Service",
+        "title": "Terms of Service",
+        "eyebrow": "Terms",
         "intro": (
-            "Orish richtet sich an Lernende und Lehrpersonen, die Englischkenntnisse "
-            "verbessern möchten. Durch die Nutzung erklärst du dich mit den folgenden Regeln einverstanden."
+            "Orish is designed for learners and teachers who want to sharpen English skills. "
+            "By using the platform you agree to the following guidelines."
         ),
         "clauses": [
             {
-                "title": "Zulässige Nutzung",
+                "title": "Permitted use",
                 "body": (
-                    "Die Plattform darf ausschließlich für persönliche oder schulische Lernzwecke verwendet werden. "
-                    "Automatisierte Abfragen, unautorisierte Kopien oder das Teilen von geschützten Inhalten mit Dritten "
-                    "sind untersagt."
+                    "Use Orish only for your personal or school learning workflows. "
+                    "No automated scraping, mass exports, or sharing of private classroom data without consent."
                 ),
             },
             {
-                "title": "Accounts & Sicherheit",
+                "title": "Account safety",
                 "body": (
-                    "Nutzerinnen und Nutzer sind verantwortlich für die Sicherheit ihres Accounts. "
-                    "Melde uns bitte sofort, falls ein Verdacht auf unbefugten Zugriff besteht."
+                    "You are responsible for safeguarding your account credentials. "
+                    "Contact us immediately if you suspect unauthorized activity."
                 ),
             },
             {
-                "title": "Lehrpersonen",
+                "title": "Teacher dashboards",
                 "body": (
-                    "Teacher-Dashboards dürfen nur mit Zustimmung der Schule eingesetzt werden. "
-                    "Exportierte Daten dürfen ausschließlich zur Leistungsbeurteilung der eigenen Klasse genutzt werden."
+                    "Admin tools may only be used with school approval. "
+                    "Exports are limited to assessing the learners you actively teach."
                 ),
             },
             {
-                "title": "Verfügbarkeit",
+                "title": "Availability",
                 "body": (
-                    "Wir bemühen uns um hohe Verfügbarkeit, behalten uns jedoch Wartungsfenster oder Änderungen am Dienst vor. "
-                    "Bei gravierenden Änderungen informieren wir registrierte Benutzer per E-Mail."
+                    "We strive for high uptime but may schedule maintenance or updates. "
+                    "Major changes will be communicated to registered users via email."
                 ),
             },
         ],
     },
     {
         "id": "privacy",
-        "title": "Datenschutzerklärung",
-        "eyebrow": "Privacy Notice",
+        "title": "Privacy Policy",
+        "eyebrow": "Privacy",
         "intro": (
-            "Wir verarbeiten nur die Daten, die für die Bereitstellung der Lernplattform notwendig sind "
-            "und halten uns an die DSGVO sowie das Schweizer DSG."
+            "We collect only the data needed to deliver the learning experience and stay compliant with GDPR and Swiss law."
         ),
         "clauses": [
             {
-                "title": "Welche Daten werden erhoben?",
+                "title": "Data we collect",
                 "body": (
-                    "Basisdaten (Name, Benutzername, Schul-E-Mail), Lernfortschritte (Quiz-Antworten, Scores, Feedback) "
-                    "sowie freiwillige Uploads für KI-Analysen. Zahlungsdaten werden nicht gespeichert."
+                    "Profile basics (name, username, school email), quiz activity (answers, scores, feedback), "
+                    "and optional uploads for AI analysis. We never store payment information."
                 ),
             },
             {
-                "title": "Zweck der Verarbeitung",
+                "title": "Purpose",
                 "body": (
-                    "Bereitstellung der Übungen, individualisierte Rückmeldungen, statistische Auswertungen für Lehrpersonen "
-                    "sowie technische Sicherheit (Logging, Fehlermeldungen)."
+                    "To provide practice modules, tailored feedback, teacher analytics, and core security logging."
                 ),
             },
             {
-                "title": "Speicherdauer",
+                "title": "Retention",
                 "body": (
-                    "Accountdaten werden solange aufbewahrt, wie du einen aktiven Zugang hast. "
-                    "Auf Anfrage löschen wir Daten innerhalb von 30 Tagen. Prüfungsresultate werden nach 18 Monaten anonymisiert."
+                    "Accounts remain active until you request deletion. "
+                    "Upon request we erase data within 30 days. Exam logs are anonymized after 18 months."
                 ),
             },
             {
-                "title": "Weitergabe & Auftragsverarbeiter",
+                "title": "Processors",
                 "body": (
-                    "Hosting erfolgt in der EU. KI-Funktionen können DeepSeek/OpenAI nutzen; "
-                    "es werden dabei nur die notwendigen Textausschnitte übertragen. "
-                    "Es findet keine Weitergabe an Werbenetzwerke statt."
+                    "Hosting is located in the EU. AI features can use DeepSeek/OpenAI and only send necessary snippets. "
+                    "We do not share data with ad networks."
                 ),
             },
             {
-                "title": "Deine Rechte",
+                "title": "Your rights",
                 "body": (
-                    "Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung "
-                    "und Datenübertragbarkeit. Wende dich dafür an privacy@orish.app."
+                    "You may request access, correction, deletion, restriction, or data portability at privacy@orish.app."
                 ),
             },
         ],
     },
     {
         "id": "contact",
-        "title": "Kontakt & Verantwortliche Stelle",
+        "title": "Contact & Responsible Entity",
         "eyebrow": "Contact",
         "intro": (
-            "Für alle rechtlichen Anliegen stehen wir gerne zur Verfügung. "
-            "Wir antworten in der Regel innerhalb von zwei Werktagen."
+            "Need help with legal, privacy, or account topics? Reach out and we usually respond within two business days."
         ),
         "clauses": [
             {
-                "title": "Verantwortlich",
-                "body": "Orish • Lorrainestrasse 5B • 3013 Bern • Schweiz",
+                "title": "Responsible organization",
+                "body": "Orish Learning Collective • Lorrainestrasse 5B • 3013 Bern • Switzerland",
             },
             {
-                "title": "E-Mail",
-                "body": "lha146043@stud.gibb.ch",
+                "title": "Email",
+                "body": "privacy@orish.app",
             },
         ],
     },
@@ -1238,6 +1232,20 @@ def create_exam():
         flash("Please provide a valid title and category.", "warning")
         return redirect(url_for("exams"))
     questions = max(3, min(questions, 15))
+    available = (
+        get_db()
+        .execute(
+            f"SELECT COUNT(*) FROM {CATEGORIES[category]['table']}",
+        )
+        .fetchone()[0]
+    )
+    if available < questions:
+        flash(
+            f"Not enough {CATEGORIES[category]['label'].lower()} questions to create this exam. "
+            "Add more items to the question bank first.",
+            "warning",
+        )
+        return redirect(url_for("exams"))
     db = get_db()
     db.execute(
         "INSERT INTO exams (title, description, category, questions) VALUES (?, ?, ?, ?)",
@@ -1258,13 +1266,27 @@ def generate_exam_ai():
         flash(str(exc), "danger")
         return redirect(url_for("exams"))
     db = get_db()
+    questions = max(3, min(payload["questions"], 15))
+    available = (
+        db.execute(
+            f"SELECT COUNT(*) FROM {CATEGORIES[payload['category']]['table']}",
+        )
+        .fetchone()[0]
+    )
+    if available < questions:
+        flash(
+            f"Not enough {CATEGORIES[payload['category']]['label'].lower()} questions to publish the AI exam. "
+            "Add more questions first.",
+            "warning",
+        )
+        return redirect(url_for("exams"))
     db.execute(
         "INSERT INTO exams (title, description, category, questions) VALUES (?, ?, ?, ?)",
         (
             payload["title"],
             payload["description"],
             payload["category"],
-            payload["questions"],
+            questions,
         ),
     )
     db.commit()
@@ -1457,6 +1479,8 @@ def start_exam_session(exam_row):
     questions = fetch_random_questions(
         exam_row["category"], limit=exam_row["questions"]
     )
+    if not questions:
+        raise ValueError("No questions available for this exam yet.")
     session["exam"] = {
         "exam_id": exam_row["id"],
         "title": exam_row["title"],

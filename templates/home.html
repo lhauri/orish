@@ -3,12 +3,12 @@
 {% block content %}
 <section class="hero-grid">
     <div class="hero-main">
-        <p class="eyebrow">Built for apprentices &amp; Berufsmatura prep</p>
+        <p class="eyebrow">Built for apprentices &amp; vocational prep</p>
         <h1>English practice that fits into any commute or study break.</h1>
         <p class="subtitle">Curated question blocks, bilingual hints, and optional AI explanations keep you motivated while teachers still stay in control.</p>
         <div class="hero-actions">
             {% if g.user %}
-            <a href="{{ url_for('dashboard') }}" class="btn primary">Weiterlernen</a>
+            <a href="{{ url_for('dashboard') }}" class="btn primary">Continue learning</a>
             <a href="{{ url_for('quiz_select') }}" class="btn secondary ghost">Choose another skill</a>
             {% else %}
             <a href="{{ url_for('register') }}" class="btn primary">Create a free account</a>
@@ -25,7 +25,7 @@
                 <p>Spot weak areas before exams.</p>
             </li>
             <li>
-                <span class="signal-title">Datenschutz ready</span>
+                <span class="signal-title">Privacy ready</span>
                 <p>Transparent legal pages + EU hosting.</p>
             </li>
         </ul>
@@ -114,7 +114,7 @@
     </article>
     <article class="info-card">
         <p class="eyebrow">03 • Legal ready</p>
-        <h3>Datenschutzerklärung inklusive</h3>
+        <h3>Privacy-ready documentation</h3>
         <p>We publish clear terms and privacy statements so your school admins can sign off quickly.</p>
         <a class="btn ghost" href="{{ url_for('legal') }}">View legal pages</a>
     </article>
