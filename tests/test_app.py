@@ -228,6 +228,32 @@ def test_search_internet_requires_query():
         search_internet("")
 
 
+def test_search_internet_accepts_202(monkeypatch):
+    payload = {
+        "AbstractText": "Sample summary",
+        "AbstractURL": "https://example.com/summary",
+        "Heading": "Sample",
+        "Results": [
+            {"FirstURL": "https://example.com/a", "Text": "A result - details"},
+        ],
+        "RelatedTopics": [],
+    }
+
+    class DummyResponse:
+        status_code = 202
+
+        def json(self):
+            return payload
+
+    def fake_get(*args, **kwargs):
+        return DummyResponse()
+
+    monkeypatch.setattr("app.requests.get", fake_get)
+    results = search_internet("orish news", max_results=2)
+    assert len(results) >= 1
+    assert results[0]["title"]
+
+
 def test_ai_search_endpoint_requires_query(client, create_user):
     user_id = create_user(username="searchuser", email="search@example.com", password="seekpass")
     with client.session_transaction() as session:
@@ -299,6 +325,7 @@ def test_ai_assistant_creates_exam(client, create_user, monkeypatch):
     final = chunks[-1]
     assert final["type"] == "answer"
     assert final["actions"][0]["type"] == "create_exam"
+    assert final["actions"][0]["url"].endswith("/manage")
     with flask_app.app_context():
         db = get_db()
         row = db.execute("SELECT * FROM exams WHERE title = ?", ("Assistant Exam",)).fetchone()
@@ -325,3 +352,5 @@ def test_ai_assistant_navigation_action(client, create_user, monkeypatch):
     assert final["type"] == "answer"
     with flask_app.app_context():
         assert final["navigate_to"].endswith(url_for("exams"))
+    assert final["actions"][0]["type"] == "navigate"
+    assert final["actions"][0]["label"]

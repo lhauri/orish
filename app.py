@@ -681,18 +681,33 @@ def search_internet(query, max_results=5):
     request_url = f"{WEB_SEARCH_ENDPOINT}?{urlencode(params)}"
     log_context = {"query": query, "limit": limit, "endpoint": WEB_SEARCH_ENDPOINT}
     _log_ai_event("web_search_request", {**log_context, "url": request_url})
+    headers = {
+        "User-Agent": "OrishAI/1.0 (+https://orish.app)",
+        "Accept": "application/json",
+    }
     try:
         response = requests.get(
-            WEB_SEARCH_ENDPOINT, params=params, timeout=WEB_SEARCH_TIMEOUT
+            WEB_SEARCH_ENDPOINT,
+            params=params,
+            headers=headers,
+            timeout=WEB_SEARCH_TIMEOUT,
         )
-        response.raise_for_status()
-        payload = response.json()
     except requests.RequestException as exc:
         _log_ai_event(
             "web_search_error",
             {**log_context, "error": str(exc)},
         )
         raise RuntimeError("Search request failed. Try again shortly.") from exc
+    if response.status_code not in (200, 202):
+        _log_ai_event(
+            "web_search_error",
+            {**log_context, "status_code": response.status_code},
+        )
+        raise RuntimeError("Search provider unavailable right now.")
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise RuntimeError("Search provider returned invalid data.") from exc
 
     results = []
     if payload.get("AbstractText"):
@@ -812,7 +827,7 @@ def _available_ai_navigation_links(user):
             url = url_for(entry["endpoint"], **kwargs)
         except Exception:
             continue
-        links.append({"id": entry["id"], "label": entry["label"], "url": url})
+        links.append({"id": entry["id"], "label": entry["label"], "url": url, "kwargs": kwargs})
     return links
 
 
@@ -898,18 +913,27 @@ def _resolve_navigation_target(nav_links, value):
     if not target:
         return None
     for link in nav_links:
-        if (
-            target == link["id"].lower()
-            or target == link["label"].lower()
-            or target == link["url"].lower()
-        ):
-            return link["url"]
+        comparisons = {
+            (link.get("id") or "").lower(),
+            (link.get("label") or "").lower(),
+            (link.get("url") or "").lower(),
+        }
+        kwargs = link.get("kwargs") or {}
+        if target in comparisons:
+            return link
+        title = kwargs.get("category")
+        if title and target == str(title).lower():
+            return link
     return None
 
 
 def _assistant_create_exam(user, payload):
     if not _user_is_admin(user):
-        return {"type": "create_exam", "status": "forbidden", "message": "Teacher role required to create exams."}
+        return {
+            "type": "create_exam",
+            "status": "forbidden",
+            "message": "Teacher role required to create exams.",
+        }
     title = (payload.get("title") or "AI Draft Exam").strip()[:80]
     description = (payload.get("description") or "Created via assistant").strip()[:200]
     category = (payload.get("category") or "vocabulary").lower()
@@ -934,12 +958,18 @@ def _assistant_create_exam(user, payload):
         "exam_id": exam_id,
         "title": title,
         "category": category,
+        "url": url_for("manage_exam", exam_id=exam_id),
+        "label": f"Edit {title}",
     }
 
 
 def _assistant_create_question(user, payload):
     if not _user_is_admin(user):
-        return {"type": "create_question", "status": "forbidden", "message": "Teacher role required to add questions."}
+        return {
+            "type": "create_question",
+            "status": "forbidden",
+            "message": "Teacher role required to add questions.",
+        }
     category = (payload.get("category") or "").lower()
     if category not in CATEGORIES:
         category = "vocabulary"
@@ -950,7 +980,11 @@ def _assistant_create_question(user, payload):
     reference_answer = (payload.get("reference_answer") or "").strip()
     prompt = (payload.get("prompt") or payload.get("word") or payload.get("sentence") or "").strip()
     if not prompt or not correct:
-        return {"type": "create_question", "status": "error", "message": "Prompt and correct answer are required."}
+        return {
+            "type": "create_question",
+            "status": "error",
+            "message": "Prompt and correct answer are required.",
+        }
     db = get_db()
     if category == "vocabulary":
         db.execute(
@@ -976,12 +1010,18 @@ def _assistant_create_question(user, payload):
         "status": "success",
         "category": category,
         "prompt": prompt[:120],
+        "url": url_for("admin_questions"),
+        "label": "Question bank",
     }
 
 
 def _assistant_create_group(user, payload):
     if not _user_is_admin(user):
-        return {"type": "create_group", "status": "forbidden", "message": "Only teachers can create groups."}
+        return {
+            "type": "create_group",
+            "status": "forbidden",
+            "message": "Only teachers can create groups.",
+        }
     title = (payload.get("title") or payload.get("name") or "AI Study Pack").strip()
     subject = (payload.get("category") or payload.get("subject") or "vocabulary").lower()
     if subject not in CATEGORIES:
@@ -1000,19 +1040,29 @@ def _assistant_create_group(user, payload):
         "group_id": cur.lastrowid,
         "title": title[:100],
         "subject": subject,
+        "url": url_for("study_group", group_id=cur.lastrowid),
+        "label": f"Open {title[:30]}",
     }
 
 
 def _assistant_create_user(user, payload):
     if not _user_is_admin(user):
-        return {"type": "create_user", "status": "forbidden", "message": "Only teachers can create users."}
+        return {
+            "type": "create_user",
+            "status": "forbidden",
+            "message": "Only teachers can create users.",
+        }
     username = (payload.get("username") or "").strip()
     email = (payload.get("email") or "").strip()
     password = (payload.get("password") or secrets.token_urlsafe(6))[:32]
     role = (payload.get("role") or "student").lower()
     is_admin = 1 if role in {"teacher", "admin"} else 0
     if not username or not email:
-        return {"type": "create_user", "status": "error", "message": "Username and email are required."}
+        return {
+            "type": "create_user",
+            "status": "error",
+            "message": "Username and email are required.",
+        }
     db = get_db()
     try:
         cur = db.execute(
@@ -1021,13 +1071,19 @@ def _assistant_create_user(user, payload):
         )
         db.commit()
     except sqlite3.IntegrityError:
-        return {"type": "create_user", "status": "error", "message": "Username or email already exists."}
+        return {
+            "type": "create_user",
+            "status": "error",
+            "message": "Username or email already exists.",
+        }
     return {
         "type": "create_user",
         "status": "success",
         "username": username[:80],
         "email": email[:120],
         "role": "teacher" if is_admin else "student",
+        "url": url_for("admin_users"),
+        "label": "Manage users",
     }
 
 
@@ -1042,8 +1098,15 @@ def _execute_assistant_actions(user, nav_links, actions):
             target_value = action.get("target") or action.get("page") or action.get("url")
             resolved = _resolve_navigation_target(nav_links, target_value)
             if resolved:
-                navigate_to = navigate_to or resolved
-                performed.append({"type": "navigate", "status": "ready", "url": resolved})
+                navigate_to = navigate_to or resolved["url"]
+                performed.append(
+                    {
+                        "type": "navigate",
+                        "status": "ready",
+                        "url": resolved["url"],
+                        "label": resolved.get("label"),
+                    }
+                )
             else:
                 performed.append({"type": "navigate", "status": "error", "message": "Unknown destination."})
         elif action_type == "create_exam":
@@ -1077,6 +1140,7 @@ def run_general_assistant_interaction(user, message):
         "4. create_group: include title, category (subject) and optional description or ai_prompt.\n"
         "5. create_user: include username, email, password (optional) and role (student or teacher).\n"
         "Return an empty actions array when no follow-up is required.\n"
+        "Each action must include a 'type' and a 'status' (success, error, forbidden, pending).\n"
         "If the user lacks permission for something, explain that in 'answer' and do not emit the prohibited action.\n"
         "When the user asks about sections of the product, prefer a navigate action to the best matching page.\n"
         "Only discuss individual people or exam attempts when the user is a teacher; otherwise, only describe their own data.\n"

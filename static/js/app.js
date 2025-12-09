@@ -212,6 +212,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const textarea = form?.querySelector('textarea');
         const messagesEl = aiWidget.querySelector('[data-role="messages"]');
         const statusEl = aiWidget.querySelector('[data-role="status"]');
+        const statusIndicator = aiWidget.querySelector('.ai-status-indicator');
+        const suggestionButtons = aiWidget.querySelectorAll('[data-suggestion]');
         const state = { open: false, busy: false };
 
         const togglePanel = open => {
@@ -236,6 +238,29 @@ document.addEventListener('DOMContentLoaded', () => {
             messagesEl.scrollTop = messagesEl.scrollHeight;
         };
 
+        const describeAction = action => {
+            const status = action.status || 'pending';
+            if (status === 'forbidden' || status === 'error') {
+                return action.message || 'Action could not be completed.';
+            }
+            if (action.type === 'create_exam' && action.title) {
+                return `Created exam "${action.title}" (${action.category}).`;
+            }
+            if (action.type === 'create_question' && action.prompt) {
+                return `Added ${action.category} question: ${action.prompt}.`;
+            }
+            if (action.type === 'create_group' && action.title) {
+                return `New group "${action.title}" ready to share.`;
+            }
+            if (action.type === 'create_user' && action.username) {
+                return `Created ${action.role} account for ${action.username}.`;
+            }
+            if (action.type === 'navigate' && (action.label || action.url)) {
+                return `Navigate to ${action.label || action.url}.`;
+            }
+            return action.message || `${action.type || 'action'} (${status})`;
+        };
+
         const renderActions = actions => {
             if (!messagesEl || !actions || !actions.length) {
                 return;
@@ -244,24 +269,20 @@ document.addEventListener('DOMContentLoaded', () => {
             list.className = 'ai-action-list';
             actions.forEach(action => {
                 const item = document.createElement('li');
-                const type = action.type || 'action';
-                const status = action.status || 'pending';
-                if (type === 'create_exam' && status === 'success') {
-                    item.textContent = `Created exam "${action.title}" (${action.category}).`;
-                } else if (type === 'create_question' && status === 'success') {
-                    item.textContent = `Added ${action.category} question: ${action.prompt}.`;
-                } else if (type === 'create_group' && status === 'success') {
-                    item.textContent = `New group "${action.title}" for ${action.subject}.`;
-                } else if (type === 'create_user' && status === 'success') {
-                    item.textContent = `Created ${action.role} account for ${action.username}.`;
-                } else if (type === 'navigate' && action.url) {
-                    item.textContent = `Navigate to ${action.url}`;
-                } else if (status === 'forbidden') {
-                    item.textContent = action.message || 'Action not permitted.';
-                } else if (status === 'error') {
-                    item.textContent = action.message || 'Unable to complete action.';
-                } else {
-                    item.textContent = action.message || `${type} (${status})`;
+                const message = describeAction(action);
+                item.textContent = message;
+                if (action.url) {
+                    const link = document.createElement('a');
+                    link.href = action.url;
+                    link.textContent = action.label || 'Open link';
+                    link.target = '_self';
+                    item.appendChild(document.createTextNode(' '));
+                    item.appendChild(link);
+                }
+                if (typeof pushFlash === 'function' && action.status === 'success') {
+                    pushFlash(message, 'success');
+                } else if (typeof pushFlash === 'function' && action.status === 'error') {
+                    pushFlash(message, 'danger');
                 }
                 list.appendChild(item);
             });
@@ -269,9 +290,12 @@ document.addEventListener('DOMContentLoaded', () => {
             messagesEl.scrollTop = messagesEl.scrollHeight;
         };
 
-        const updateStatus = text => {
+        const updateStatus = (text, mode = 'ready') => {
             if (statusEl) {
                 statusEl.textContent = text || '';
+            }
+            if (statusIndicator) {
+                statusIndicator.setAttribute('data-state', mode);
             }
         };
 
@@ -280,9 +304,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             if (event.type === 'status') {
-                updateStatus(event.message);
+                updateStatus(event.message, 'thinking');
             } else if (event.type === 'answer') {
-                updateStatus('');
+                updateStatus('', 'ready');
                 appendMessage('assistant', event.answer || 'Done.');
                 renderActions(event.actions);
                 if (event.navigate_to) {
@@ -292,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }, 1200);
                 }
             } else if (event.type === 'error') {
-                updateStatus(event.message);
+                updateStatus(event.message, 'error');
                 appendMessage('assistant', event.message || 'The assistant is unavailable.');
             }
         };
@@ -345,6 +369,16 @@ document.addEventListener('DOMContentLoaded', () => {
             togglePanel(!state.open);
         });
         closeButton?.addEventListener('click', () => togglePanel(false));
+        suggestionButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const suggestion = button.dataset.suggestion;
+                if (!suggestion || !textarea) {
+                    return;
+                }
+                textarea.value = suggestion;
+                textarea.focus();
+            });
+        });
 
         form?.addEventListener('submit', event => {
             event.preventDefault();
@@ -357,11 +391,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             appendMessage('user', text);
             textarea.value = '';
-            updateStatus('Thinking…');
+            updateStatus('Thinking…', 'thinking');
             state.busy = true;
             streamAssistant({ message: text })
                 .catch(error => {
-                    updateStatus(error.message);
+                    updateStatus(error.message, 'error');
                     appendMessage('assistant', error.message);
                 })
                 .finally(() => {

@@ -185,7 +185,19 @@
                 </button>
             </header>
             <div class="ai-messages" data-role="messages"></div>
-            <div class="ai-status" data-role="status" aria-live="polite"></div>
+            <div class="ai-status-line">
+                <span class="ai-status-indicator" data-state="ready" aria-hidden="true"></span>
+                <span class="ai-status" data-role="status" aria-live="polite">Ready for your question.</span>
+            </div>
+            <div class="ai-suggestions" data-role="suggestions">
+                <button type="button" data-suggestion="Show me all available exams.">Exams overview</button>
+                <button type="button" data-suggestion="Where is the study packs page?">Find study packs</button>
+                <button type="button" data-suggestion="What vocabulary practice can I do?">Practice tip</button>
+                {% if g.user['is_admin'] %}
+                <button type="button" data-suggestion="Create a five-question grammar exam about connectors.">Draft grammar exam</button>
+                <button type="button" data-suggestion="Add a vocabulary question about resilient.">Add vocab question</button>
+                {% endif %}
+            </div>
             <form class="ai-form" data-role="form" data-enter-submit="true">
                 {{ csrf_field() }}
                 <label class="sr-only" for="ai-input">Ask the AI</label>
