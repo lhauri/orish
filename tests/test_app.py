@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 
@@ -60,6 +61,7 @@ def test_home_page_has_new_structure(client):
     html = response.get_data(as_text=True)
     assert "English practice that fits into any commute" in html
     assert "Study blocks for every skill" in html
+    assert "Branch:" in html
 
 
 def test_legal_page_mentions_privacy_and_contact(client):
@@ -274,3 +276,52 @@ def test_request_ai_json_with_web_search_triggers_research(monkeypatch):
     assert result["title"] == "AI Exam Draft"
     assert len(prompts) == 2
     assert "Web research results you requested" in prompts[1]
+
+
+def test_ai_assistant_creates_exam(client, create_user, monkeypatch):
+    admin_id = create_user(username="assistant-teacher", email="assistant-teacher@example.com", password="assist", is_admin=True)
+    with client.session_transaction() as session:
+        session["user_id"] = admin_id
+
+    def fake_request(system_prompt, base_prompt, max_rounds=2):
+        return {
+            "answer": "Drafted a grammar exam.",
+            "actions": [
+                {"type": "create_exam", "title": "Assistant Exam", "category": "grammar", "questions": 4}
+            ],
+        }
+
+    monkeypatch.setattr("app.request_ai_json_with_web_search", fake_request)
+
+    response = client.post("/ai/assistant", json={"message": "Create a grammar test"}, buffered=True)
+    assert response.status_code == 200
+    chunks = [json.loads(line) for line in response.data.decode().split("\n") if line.strip()]
+    final = chunks[-1]
+    assert final["type"] == "answer"
+    assert final["actions"][0]["type"] == "create_exam"
+    with flask_app.app_context():
+        db = get_db()
+        row = db.execute("SELECT * FROM exams WHERE title = ?", ("Assistant Exam",)).fetchone()
+        assert row is not None
+
+
+def test_ai_assistant_navigation_action(client, create_user, monkeypatch):
+    user_id = create_user(username="nav-student", email="nav-student@example.com", password="assist")
+    with client.session_transaction() as session:
+        session["user_id"] = user_id
+
+    def fake_request(system_prompt, base_prompt, max_rounds=2):
+        return {
+            "answer": "Opening exams.",
+            "actions": [{"type": "navigate", "target": "exams"}],
+        }
+
+    monkeypatch.setattr("app.request_ai_json_with_web_search", fake_request)
+
+    response = client.post("/ai/assistant", json={"message": "Take me to the exams"}, buffered=True)
+    assert response.status_code == 200
+    chunks = [json.loads(line) for line in response.data.decode().split("\n") if line.strip()]
+    final = chunks[-1]
+    assert final["type"] == "answer"
+    with flask_app.app_context():
+        assert final["navigate_to"].endswith(url_for("exams"))

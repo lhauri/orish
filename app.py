@@ -15,6 +15,7 @@ import random
 import re
 import secrets
 import sqlite3
+import subprocess
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -33,8 +34,10 @@ from flask import (
     jsonify,
     redirect,
     render_template,
+    Response,
     request,
     session,
+    stream_with_context,
     url_for,
 )
 from markupsafe import Markup
@@ -50,6 +53,28 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, "orish.db")
 AI_LOG_PATH = os.path.join(BASE_DIR, "ai.log")
 
+
+def _run_git_command(*args):
+    try:
+        result = subprocess.check_output(args, cwd=BASE_DIR).decode("utf-8")
+        return result.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return None
+
+
+def _detect_git_metadata():
+    branch = os.environ.get("GIT_BRANCH") or _run_git_command("git", "rev-parse", "--abbrev-ref", "HEAD")
+    commit = os.environ.get("GIT_COMMIT") or _run_git_command("git", "rev-parse", "HEAD")
+    short = commit[:7] if commit and len(commit) >= 7 else (commit or "unknown")
+    return {
+        "branch": branch or "unknown",
+        "commit": commit or "unknown",
+        "short": short,
+    }
+
+
+GIT_METADATA = _detect_git_metadata()
+
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 app = Flask(__name__)
@@ -64,6 +89,33 @@ DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 DEEPSEEK_TIMEOUT = 30
 WEB_SEARCH_ENDPOINT = "https://api.duckduckgo.com/"
 WEB_SEARCH_TIMEOUT = 12
+AI_ASSISTANT_MAX_MESSAGE_CHARS = 1200
+AI_NAVIGATION_DEFINITIONS = [
+    {"id": "home", "label": "Home", "endpoint": "home"},
+    {"id": "dashboard", "label": "Dashboard", "endpoint": "dashboard", "requires_login": True},
+    {"id": "exams", "label": "Exams overview", "endpoint": "exams", "requires_login": True},
+    {"id": "quiz_vocabulary", "label": "Vocabulary practice", "endpoint": "quiz", "requires_login": True, "kwargs": {"category": "vocabulary"}},
+    {"id": "quiz_grammar", "label": "Grammar practice", "endpoint": "quiz", "requires_login": True, "kwargs": {"category": "grammar"}},
+    {"id": "quiz_translation", "label": "Translation practice", "endpoint": "quiz", "requires_login": True, "kwargs": {"category": "translation"}},
+    {"id": "study_packs", "label": "Study packs", "endpoint": "study_packs", "requires_login": True},
+    {"id": "analyze", "label": "Document analyzer", "endpoint": "analyze", "requires_login": True},
+    {"id": "mindmap", "label": "Mindmap", "endpoint": "mindmap"},
+    {"id": "admin_users", "label": "Manage users", "endpoint": "admin_users", "requires_admin": True},
+    {"id": "admin_questions", "label": "Question bank", "endpoint": "admin_questions", "requires_admin": True},
+    {"id": "admin_exam_attempts", "label": "Exam attempts", "endpoint": "admin_exam_attempts", "requires_admin": True},
+]
+
+
+def _user_is_admin(user):
+    if not user:
+        return False
+    try:
+        if isinstance(user, dict):
+            return bool(user.get("is_admin"))
+        return bool(user["is_admin"])
+    except (KeyError, TypeError, IndexError):
+        return False
+
 
 ALLOWED_UPLOADS = {".txt", ".md", ".pdf", ".docx", ".xlsx", ".csv"}
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024  # 2 MB cap to keep parsing responsive
@@ -748,6 +800,328 @@ def request_ai_json_with_web_search(system_prompt, base_user_prompt, max_rounds=
     raise RuntimeError("AI search loop exhausted without final output.")
 
 
+def _available_ai_navigation_links(user):
+    links = []
+    for entry in AI_NAVIGATION_DEFINITIONS:
+        if entry.get("requires_login") and not user:
+            continue
+        if entry.get("requires_admin") and not _user_is_admin(user):
+            continue
+        kwargs = entry.get("kwargs") or {}
+        try:
+            url = url_for(entry["endpoint"], **kwargs)
+        except Exception:
+            continue
+        links.append({"id": entry["id"], "label": entry["label"], "url": url})
+    return links
+
+
+def _assistant_context_snapshot(user):
+    db = get_db()
+    lines = []
+    total_users = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    total_exams = db.execute("SELECT COUNT(*) FROM exams").fetchone()[0]
+    totals = count_general_questions()
+    lines.append(f"Users: {total_users} registered")
+    lines.append(f"Exams: {total_exams} total")
+    lines.append(
+        "Question bank totals: "
+        + ", ".join(f"{CATEGORIES[key]['label']}: {totals.get(key, 0)}" for key in CATEGORIES)
+    )
+    exam_rows = db.execute(
+        """
+        SELECT id, title, category, questions, is_active
+        FROM exams
+        ORDER BY id DESC
+        LIMIT 8
+        """
+    ).fetchall()
+    if exam_rows:
+        lines.append("Recent exams:")
+        for row in exam_rows:
+            status = "active" if row["is_active"] else "inactive"
+            lines.append(
+                f"- #{row['id']} {row['title']} ({row['category']}, {row['questions']} questions, {status})"
+            )
+    if _user_is_admin(user):
+        group_rows = db.execute(
+            """
+            SELECT id, name, subject
+            FROM question_groups
+            ORDER BY id DESC
+            LIMIT 5
+            """
+        ).fetchall()
+        if group_rows:
+            lines.append("Question groups:")
+            for row in group_rows:
+                lines.append(f"- #{row['id']} {row['name']} ({row['subject']})")
+        attempt_rows = db.execute(
+            """
+            SELECT ea.id, u.username, e.title, ea.score, ea.total, ea.mode
+            FROM exam_attempts ea
+            JOIN users u ON u.id = ea.user_id
+            JOIN exams e ON e.id = ea.exam_id
+            ORDER BY ea.id DESC
+            LIMIT 5
+            """
+        ).fetchall()
+        if attempt_rows:
+            lines.append("Latest exam attempts:")
+            for row in attempt_rows:
+                lines.append(
+                    f"- Attempt #{row['id']}: {row['username']} scored {row['score']}/{row['total']} on {row['mode']} mode ({row['title']})."
+                )
+    elif user:
+        attempt_rows = db.execute(
+            """
+            SELECT e.title, ea.score, ea.total, ea.mode
+            FROM exam_attempts ea
+            JOIN exams e ON e.id = ea.exam_id
+            WHERE ea.user_id = ?
+            ORDER BY ea.id DESC
+            LIMIT 5
+            """,
+            (user["id"],),
+        ).fetchall()
+        if attempt_rows:
+            lines.append("Your recent exam attempts:")
+            for row in attempt_rows:
+                lines.append(
+                    f"- {row['title']} ({row['mode']}): {row['score']}/{row['total']}."
+                )
+    return "\n".join(lines)
+
+
+def _resolve_navigation_target(nav_links, value):
+    target = (value or "").strip().lower()
+    if not target:
+        return None
+    for link in nav_links:
+        if (
+            target == link["id"].lower()
+            or target == link["label"].lower()
+            or target == link["url"].lower()
+        ):
+            return link["url"]
+    return None
+
+
+def _assistant_create_exam(user, payload):
+    if not _user_is_admin(user):
+        return {"type": "create_exam", "status": "forbidden", "message": "Teacher role required to create exams."}
+    title = (payload.get("title") or "AI Draft Exam").strip()[:80]
+    description = (payload.get("description") or "Created via assistant").strip()[:200]
+    category = (payload.get("category") or "vocabulary").lower()
+    if category not in CATEGORIES:
+        category = "vocabulary"
+    try:
+        questions = int(payload.get("questions") or 5)
+    except (TypeError, ValueError):
+        questions = 5
+    questions = max(3, min(questions, 10))
+    db = get_db()
+    cur = db.execute(
+        "INSERT INTO exams (title, description, category, questions, is_active, study_enabled, test_enabled) "
+        "VALUES (?, ?, ?, ?, 1, 1, 1)",
+        (title, description, category, questions),
+    )
+    db.commit()
+    exam_id = cur.lastrowid
+    return {
+        "type": "create_exam",
+        "status": "success",
+        "exam_id": exam_id,
+        "title": title,
+        "category": category,
+    }
+
+
+def _assistant_create_question(user, payload):
+    if not _user_is_admin(user):
+        return {"type": "create_question", "status": "forbidden", "message": "Teacher role required to add questions."}
+    category = (payload.get("category") or "").lower()
+    if category not in CATEGORIES:
+        category = "vocabulary"
+    correct = (payload.get("correct_answer") or "").strip()
+    wrong1 = (payload.get("wrong1") or "").strip()
+    wrong2 = (payload.get("wrong2") or "").strip()
+    wrong3 = (payload.get("wrong3") or "").strip()
+    reference_answer = (payload.get("reference_answer") or "").strip()
+    prompt = (payload.get("prompt") or payload.get("word") or payload.get("sentence") or "").strip()
+    if not prompt or not correct:
+        return {"type": "create_question", "status": "error", "message": "Prompt and correct answer are required."}
+    db = get_db()
+    if category == "vocabulary":
+        db.execute(
+            "INSERT INTO questions_vocabulary (word, correct_answer, wrong1, wrong2, wrong3) VALUES (?, ?, ?, ?, ?)",
+            (prompt[:120], correct[:200], wrong1[:200], wrong2[:200], wrong3[:200]),
+        )
+    elif category == "grammar":
+        sentence = prompt.replace("__", "____")
+        db.execute(
+            "INSERT INTO questions_grammar (sentence_with_placeholder, correct_answer, wrong1, wrong2, wrong3) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (sentence[:300], correct[:200], wrong1[:200], wrong2[:200], wrong3[:200]),
+        )
+    else:
+        reference = reference_answer or correct
+        db.execute(
+            "INSERT INTO questions_translation (prompt, reference_answer) VALUES (?, ?)",
+            (prompt[:300], reference[:300]),
+        )
+    db.commit()
+    return {
+        "type": "create_question",
+        "status": "success",
+        "category": category,
+        "prompt": prompt[:120],
+    }
+
+
+def _assistant_create_group(user, payload):
+    if not _user_is_admin(user):
+        return {"type": "create_group", "status": "forbidden", "message": "Only teachers can create groups."}
+    title = (payload.get("title") or payload.get("name") or "AI Study Pack").strip()
+    subject = (payload.get("category") or payload.get("subject") or "vocabulary").lower()
+    if subject not in CATEGORIES:
+        subject = "vocabulary"
+    description = (payload.get("description") or "").strip()
+    ai_prompt = (payload.get("ai_prompt") or payload.get("prompt") or "").strip()
+    db = get_db()
+    cur = db.execute(
+        "INSERT INTO question_groups (name, subject, description, ai_prompt, created_by) VALUES (?, ?, ?, ?, ?)",
+        (title[:100], subject, description[:250], ai_prompt[:250], user["id"]),
+    )
+    db.commit()
+    return {
+        "type": "create_group",
+        "status": "success",
+        "group_id": cur.lastrowid,
+        "title": title[:100],
+        "subject": subject,
+    }
+
+
+def _assistant_create_user(user, payload):
+    if not _user_is_admin(user):
+        return {"type": "create_user", "status": "forbidden", "message": "Only teachers can create users."}
+    username = (payload.get("username") or "").strip()
+    email = (payload.get("email") or "").strip()
+    password = (payload.get("password") or secrets.token_urlsafe(6))[:32]
+    role = (payload.get("role") or "student").lower()
+    is_admin = 1 if role in {"teacher", "admin"} else 0
+    if not username or not email:
+        return {"type": "create_user", "status": "error", "message": "Username and email are required."}
+    db = get_db()
+    try:
+        cur = db.execute(
+            "INSERT INTO users (username, email, password_hash, is_admin) VALUES (?, ?, ?, ?)",
+            (username[:80], email[:120], generate_password_hash(password), is_admin),
+        )
+        db.commit()
+    except sqlite3.IntegrityError:
+        return {"type": "create_user", "status": "error", "message": "Username or email already exists."}
+    return {
+        "type": "create_user",
+        "status": "success",
+        "username": username[:80],
+        "email": email[:120],
+        "role": "teacher" if is_admin else "student",
+    }
+
+
+def _execute_assistant_actions(user, nav_links, actions):
+    performed = []
+    navigate_to = None
+    for action in actions or []:
+        if not isinstance(action, dict):
+            continue
+        action_type = (action.get("type") or "").lower()
+        if action_type == "navigate":
+            target_value = action.get("target") or action.get("page") or action.get("url")
+            resolved = _resolve_navigation_target(nav_links, target_value)
+            if resolved:
+                navigate_to = navigate_to or resolved
+                performed.append({"type": "navigate", "status": "ready", "url": resolved})
+            else:
+                performed.append({"type": "navigate", "status": "error", "message": "Unknown destination."})
+        elif action_type == "create_exam":
+            performed.append(_assistant_create_exam(user, action))
+        elif action_type == "create_question":
+            performed.append(_assistant_create_question(user, action))
+        elif action_type == "create_group":
+            performed.append(_assistant_create_group(user, action))
+        elif action_type == "create_user":
+            performed.append(_assistant_create_user(user, action))
+    return {"actions": performed, "navigate_to": navigate_to}
+
+
+def run_general_assistant_interaction(user, message):
+    message = (message or "").strip()
+    if not message:
+        raise ValueError("Please provide a prompt for the assistant.")
+    if len(message) > AI_ASSISTANT_MAX_MESSAGE_CHARS:
+        raise ValueError("Message is too long. Please shorten it.")
+    nav_links = _available_ai_navigation_links(user)
+    snapshot = _assistant_context_snapshot(user)
+    navigation_list = "\n".join(f"- {link['id']}: {link['label']} ({link['url']})" for link in nav_links)
+    category_list = ", ".join(f"{key} ({meta['label']})" for key, meta in CATEGORIES.items())
+    instructions = (
+        "You are Orish's embedded assistant for teachers and students.\n"
+        "Always return JSON with keys 'answer' (string) and 'actions' (array).\n"
+        "Supported actions:\n"
+        "1. navigate: include target identifying one of the provided navigation targets.\n"
+        "2. create_exam: include title, description, category, questions.\n"
+        "3. create_question: include category, prompt, correct_answer, wrong1, wrong2, wrong3, reference_answer.\n"
+        "4. create_group: include title, category (subject) and optional description or ai_prompt.\n"
+        "5. create_user: include username, email, password (optional) and role (student or teacher).\n"
+        "Return an empty actions array when no follow-up is required.\n"
+        "If the user lacks permission for something, explain that in 'answer' and do not emit the prohibited action.\n"
+        "When the user asks about sections of the product, prefer a navigate action to the best matching page.\n"
+        "Only discuss individual people or exam attempts when the user is a teacher; otherwise, only describe their own data.\n"
+        "You may request live research by replying with the search_queries pattern described earlier.\n"
+    )
+    base_prompt = (
+        f"User role: {'Teacher' if _user_is_admin(user) else 'Student'}\n"
+        f"Username: {user['username'] if user else 'guest'}\n"
+        f"Message: {message}\n"
+        f"Available navigation targets:\n{navigation_list}\n\n"
+        f"Exam and question context:\n{snapshot}\n\n"
+        f"Question categories: {category_list}\n"
+        "Respond with helpful detail."
+    )
+    _log_ai_event(
+        "assistant_request",
+        {
+            "user": user["username"] if user else "anonymous",
+            "role": "teacher" if _user_is_admin(user) else "student",
+            "message": message,
+        },
+    )
+    data = request_ai_json_with_web_search(instructions, base_prompt)
+    answer = (data.get("answer") or data.get("response") or data.get("text") or "").strip()
+    if not answer:
+        answer = "I'm not sure yet, could you clarify what you need?"
+    actions = data.get("actions") if isinstance(data.get("actions"), list) else []
+    execution = _execute_assistant_actions(user, nav_links, actions)
+    payload = {
+        "answer": answer,
+        "actions": execution["actions"],
+        "navigate_to": execution["navigate_to"],
+    }
+    _log_ai_event(
+        "assistant_response",
+        {
+            "user": user["username"] if user else "anonymous",
+            "answer": answer,
+            "actions": execution["actions"],
+            "navigate_to": execution["navigate_to"],
+        },
+    )
+    return payload
+
+
 def _extract_chat_text(response):
     if not response:
         return ""
@@ -1274,10 +1648,15 @@ def enforce_csrf_protection():
 
 @app.context_processor
 def inject_globals():
+    nav_links = _available_ai_navigation_links(getattr(g, "user", None)) if getattr(g, "user", None) else []
     return {
         "current_year": datetime.utcnow().year,
         "csrf_token": generate_csrf_token,
         "csrf_field": csrf_field,
+        "git_branch": GIT_METADATA["branch"],
+        "git_commit": GIT_METADATA["commit"],
+        "git_commit_short": GIT_METADATA["short"],
+        "ai_nav_targets": nav_links,
     }
 
 
@@ -1565,6 +1944,37 @@ def ai_web_search():
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 502
     return jsonify({"query": (query or "").strip(), "results": results})
+
+
+def _ndjson_line(payload):
+    return json.dumps(payload, ensure_ascii=False) + "\n"
+
+
+@app.route("/ai/assistant", methods=["POST"])
+@login_required
+def ai_assistant():
+    payload = request.get_json(silent=True) or {}
+    message = payload.get("message")
+    if not message:
+        message = request.form.get("message", "")
+
+    def generate():
+        yield _ndjson_line({"type": "status", "message": "Thinking..."})
+        try:
+            result = run_general_assistant_interaction(g.user, message)
+            yield _ndjson_line({"type": "answer", **result})
+        except ValueError as exc:
+            yield _ndjson_line({"type": "error", "message": str(exc)})
+        except Exception as exc:  # pragma: no cover - defensive
+            app.logger.exception("Assistant failed: %s", exc)
+            yield _ndjson_line(
+                {"type": "error", "message": "The assistant is unavailable right now."}
+            )
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="application/x-ndjson",
+    )
 
 
 @app.route("/register", methods=["GET", "POST"])

@@ -1,0 +1,4 @@
+{"timestamp": "2025-12-09T14:44:37Z", "event": "assistant_request", "details": {"user": "assistant-teacher", "role": "teacher", "message": "Create a grammar test"}}
+{"timestamp": "2025-12-09T14:44:37Z", "event": "assistant_response", "details": {"user": "assistant-teacher", "answer": "Drafted a grammar exam.", "actions": [{"type": "create_exam", "status": "success", "exam_id": 1, "title": "Assistant Exam", "category": "grammar"}], "navigate_to": null}}
+{"timestamp": "2025-12-09T14:44:37Z", "event": "assistant_request", "details": {"user": "nav-student", "role": "student", "message": "Take me to the exams"}}
+{"timestamp": "2025-12-09T14:44:37Z", "event": "assistant_response", "details": {"user": "nav-student", "answer": "Opening exams.", "actions": [{"type": "navigate", "status": "ready", "url": "/exams"}], "navigate_to": "/exams"}}

@@ -145,6 +145,10 @@
                 <p class="logo-mark">Orish</p>
                 <p class="footer-text">Short daily practice powered by AI feedback and teacher-friendly analytics.</p>
                 <p class="footer-meta">© {{ current_year or 2024 }} Orish • Built for GIBB learners</p>
+                <p class="footer-meta git-meta">
+                    <span class="git-pill">Branch: {{ git_branch }}</span>
+                    <span class="git-pill">Commit: {{ git_commit_short }}</span>
+                </p>
             </div>
             <div class="footer-column">
                 <p class="footer-heading">Explore</p>
@@ -164,6 +168,44 @@
         </div>
     </footer>
 
+    {% if g.user %}
+    <div class="ai-widget" data-open="false">
+        <button type="button" class="ai-launcher" aria-expanded="false" aria-controls="ai-panel">
+            <i data-lucide="bot"></i>
+            <span>General purpose AI</span>
+        </button>
+        <section id="ai-panel" class="ai-panel" data-open="false" aria-hidden="true">
+            <header class="ai-panel-header">
+                <div>
+                    <p class="ai-panel-title">Ask Orish AI</p>
+                    <p class="ai-panel-subtitle">Search the web, manage content, or jump to any page.</p>
+                </div>
+                <button type="button" class="ai-panel-close" aria-label="Close assistant">
+                    <i data-lucide="x"></i>
+                </button>
+            </header>
+            <div class="ai-messages" data-role="messages"></div>
+            <div class="ai-status" data-role="status" aria-live="polite"></div>
+            <form class="ai-form" data-role="form" data-enter-submit="true">
+                {{ csrf_field() }}
+                <label class="sr-only" for="ai-input">Ask the AI</label>
+                <textarea id="ai-input" name="message" rows="2" placeholder="Ask about exams, pages, or create new questions…" required></textarea>
+                <div class="ai-form-actions">
+                    <button type="submit" class="btn accent">
+                        <i data-lucide="send"></i>
+                        <span>Send</span>
+                    </button>
+                </div>
+            </form>
+        </section>
+    </div>
+    {% endif %}
+
+    <script>
+        window.ORISH = window.ORISH || {};
+        window.ORISH.csrfToken = "{{ csrf_token() }}";
+        window.ORISH.aiNavTargets = {{ ai_nav_targets|tojson }};
+    </script>
     <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </body>
 </html>
