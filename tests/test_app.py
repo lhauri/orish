@@ -9,7 +9,13 @@ from flask import url_for
 import pytest
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app import app as flask_app, get_db, init_tables
+from app import (
+    app as flask_app,
+    get_db,
+    init_tables,
+    request_ai_json_with_web_search,
+    search_internet,
+)
 
 
 @pytest.fixture()
@@ -213,3 +219,58 @@ def test_exam_without_enough_questions_is_blocked(client, create_user):
     response = client.get(f"/exams/{exam_id}/take", follow_redirects=True)
     html = response.get_data(as_text=True).lower()
     assert "does not have any questions yet" in html or "needs 5 questions" in html or "no questions available" in html
+
+
+def test_search_internet_requires_query():
+    with pytest.raises(ValueError):
+        search_internet("")
+
+
+def test_ai_search_endpoint_requires_query(client, create_user):
+    user_id = create_user(username="searchuser", email="search@example.com", password="seekpass")
+    with client.session_transaction() as session:
+        session["user_id"] = user_id
+    response = client.post("/ai/search", json={"query": ""})
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "query" in data["error"].lower()
+
+
+def test_request_ai_json_with_web_search_triggers_research(monkeypatch):
+    prompts = []
+    responses = iter(
+        [
+            {"search_queries": ["latest esl exam topics"], "reason": "Need recent themes"},
+            {
+                "title": "AI Exam Draft",
+                "description": "Context-aware exam",
+                "category": "vocabulary",
+                "questions": 3,
+                "items": [],
+            },
+        ]
+    )
+
+    def fake_request_ai_json(system_prompt, user_prompt):
+        prompts.append(user_prompt)
+        return next(responses)
+
+    def fake_search_internet(query, max_results=5):
+        assert query == "latest esl exam topics"
+        assert max_results == 5
+        return [
+            {
+                "title": "Modern ESL Trends",
+                "snippet": "Teachers emphasize cultural topics in 2024.",
+                "url": "https://example.com/esl",
+                "source": "duckduckgo",
+            }
+        ]
+
+    monkeypatch.setattr("app.request_ai_json", fake_request_ai_json)
+    monkeypatch.setattr("app.search_internet", fake_search_internet)
+
+    result = request_ai_json_with_web_search("system prompt", "user prompt")
+    assert result["title"] == "AI Exam Draft"
+    assert len(prompts) == 2
+    assert "Web research results you requested" in prompts[1]

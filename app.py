@@ -21,6 +21,7 @@ from datetime import datetime
 from difflib import SequenceMatcher
 from functools import wraps
 from io import BytesIO
+from urllib.parse import urlencode
 
 from dotenv import load_dotenv
 from flask import (
@@ -47,6 +48,7 @@ import requests
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, "orish.db")
+AI_LOG_PATH = os.path.join(BASE_DIR, "ai.log")
 
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
@@ -60,6 +62,8 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 DEEPSEEK_TIMEOUT = 30
+WEB_SEARCH_ENDPOINT = "https://api.duckduckgo.com/"
+WEB_SEARCH_TIMEOUT = 12
 
 ALLOWED_UPLOADS = {".txt", ".md", ".pdf", ".docx", ".xlsx", ".csv"}
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024  # 2 MB cap to keep parsing responsive
@@ -581,6 +585,169 @@ def _deepseek_chat(messages, temperature=0.4):
         raise RuntimeError("AI request failed") from exc
 
 
+def _log_ai_event(event_type, details):
+    """Append AI interactions to ai.log for auditability."""
+    record = {
+        "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "event": event_type,
+        "details": details,
+    }
+    try:
+        with open(AI_LOG_PATH, "a", encoding="utf-8") as log_file:
+            log_file.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except OSError as exc:  # pragma: no cover - filesystem edge cases
+        app.logger.warning("Failed to write ai.log entry: %s", exc)
+
+
+def _flatten_duckduckgo_topics(topics):
+    for item in topics or []:
+        if isinstance(item, dict) and item.get("Topics"):
+            yield from _flatten_duckduckgo_topics(item.get("Topics"))
+        elif isinstance(item, dict):
+            yield item
+
+
+def _strip_html(text):
+    return re.sub(r"<[^>]+>", "", text or "").strip()
+
+
+def search_internet(query, max_results=5):
+    """Fetch public web results via DuckDuckGo's Instant Answer API."""
+    query = (query or "").strip()
+    if not query:
+        raise ValueError("Search query is required.")
+    try:
+        limit = max(1, min(int(max_results), 20))
+    except (TypeError, ValueError):
+        limit = 5
+    params = {
+        "q": query,
+        "format": "json",
+        "no_html": "1",
+        "no_redirect": "1",
+    }
+    request_url = f"{WEB_SEARCH_ENDPOINT}?{urlencode(params)}"
+    log_context = {"query": query, "limit": limit, "endpoint": WEB_SEARCH_ENDPOINT}
+    _log_ai_event("web_search_request", {**log_context, "url": request_url})
+    try:
+        response = requests.get(
+            WEB_SEARCH_ENDPOINT, params=params, timeout=WEB_SEARCH_TIMEOUT
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except requests.RequestException as exc:
+        _log_ai_event(
+            "web_search_error",
+            {**log_context, "error": str(exc)},
+        )
+        raise RuntimeError("Search request failed. Try again shortly.") from exc
+
+    results = []
+    if payload.get("AbstractText"):
+        results.append(
+            {
+                "title": payload.get("Heading") or payload.get("AbstractSource") or query,
+                "url": payload.get("AbstractURL") or payload.get("AbstractSource") or "",
+                "snippet": payload.get("AbstractText"),
+                "source": "duckduckgo",
+            }
+        )
+    for entry in payload.get("Results", []):
+        if len(results) >= limit:
+            break
+        url = entry.get("FirstURL")
+        snippet = _strip_html(entry.get("Text", ""))
+        if url:
+            results.append(
+                {
+                    "title": snippet.split(" - ", 1)[0] or url,
+                    "url": url,
+                    "snippet": snippet,
+                    "source": "duckduckgo",
+                }
+            )
+    if len(results) < limit:
+        for entry in _flatten_duckduckgo_topics(payload.get("RelatedTopics", [])):
+            if len(results) >= limit:
+                break
+            url = entry.get("FirstURL")
+            snippet = _strip_html(entry.get("Text", ""))
+            if url:
+                results.append(
+                    {
+                        "title": snippet.split(" - ", 1)[0] or url,
+                        "url": url,
+                        "snippet": snippet,
+                        "source": "duckduckgo",
+                    }
+                )
+    _log_ai_event(
+        "web_search_response", {**log_context, "result_count": len(results)}
+    )
+    return results[:limit]
+
+
+def _format_search_context(search_history):
+    sections = []
+    for entry in search_history:
+        query = entry.get("query") or "Unknown query"
+        pieces = [f"Query: {query}"]
+        results = entry.get("results") or []
+        if not results:
+            pieces.append("No results found.")
+        else:
+            for idx, result in enumerate(results, start=1):
+                title = result.get("title") or result.get("url") or "Untitled"
+                snippet = result.get("snippet") or ""
+                url = result.get("url") or ""
+                snippet = (snippet or "")[:260]
+                pieces.append(f"{idx}. {title}: {snippet} (Source: {url})")
+        sections.append("\n".join(pieces))
+    return "\n\n".join(sections)
+
+
+def request_ai_json_with_web_search(system_prompt, base_user_prompt, max_rounds=2):
+    """Allow AI to request live search results before producing final JSON."""
+    augmented_system_prompt = (
+        f"{system_prompt.rstrip()}\n\n"
+        "If you require current events or factual updates, respond instead with JSON "
+        '{"search_queries": ["query one", "query two"], "reason": "short explanation"} '
+        "so the system can fetch web research. When research is provided, incorporate it and "
+        "return the final JSON response without the search_queries key."
+    )
+    search_history = []
+    seen_queries = set()
+    for _ in range(max_rounds + 1):
+        user_prompt = base_user_prompt
+        if search_history:
+            user_prompt = (
+                f"{base_user_prompt}\n\nWeb research results you requested:\n"
+                f"{_format_search_context(search_history)}"
+            )
+        data = request_ai_json(augmented_system_prompt, user_prompt)
+        if isinstance(data, dict):
+            queries = data.get("search_queries")
+            if queries:
+                normalized = []
+                for raw in queries:
+                    query = (raw or "").strip()
+                    if query and query.lower() not in seen_queries:
+                        normalized.append(query)
+                        seen_queries.add(query.lower())
+                if not normalized:
+                    data.pop("search_queries", None)
+                    data.pop("reason", None)
+                    return data
+                for query in normalized:
+                    results = search_internet(query, max_results=5)
+                    search_history.append({"query": query, "results": results})
+                continue
+            data.pop("search_queries", None)
+            data.pop("reason", None)
+        return data
+    raise RuntimeError("AI search loop exhausted without final output.")
+
+
 def _extract_chat_text(response):
     if not response:
         return ""
@@ -640,7 +807,7 @@ def generate_questions_with_prompt(category, prompt):
     )
     use_fallback = False
     try:
-        data = request_ai_json(instructions, user_prompt)
+        data = request_ai_json_with_web_search(instructions, user_prompt)
     except RuntimeError as exc:
         app.logger.warning("AI question generation failed: %s", exc)
         data = _fallback_questions_for_category(category)
@@ -673,7 +840,9 @@ def generate_exam_from_prompt(prompt):
     )
     use_fallback = False
     try:
-        data = request_ai_json(instructions, prompt or "Create a balanced assessment.")
+        data = request_ai_json_with_web_search(
+            instructions, prompt or "Create a balanced assessment."
+        )
     except RuntimeError as exc:
         app.logger.warning("AI exam generation failed: %s", exc)
         use_fallback = True
@@ -1377,6 +1546,25 @@ def analyze():
         custom_prompt=custom_prompt,
         sample_text=extracted[:1200],
     )
+
+
+@app.route("/ai/search", methods=["POST"])
+@login_required
+def ai_web_search():
+    payload = request.get_json(silent=True) or {}
+    query = payload.get("query")
+    limit = payload.get("limit")
+    if not query:
+        query = request.form.get("query", "")
+    if limit is None:
+        limit = request.form.get("limit")
+    try:
+        results = search_internet(query, max_results=limit or 5)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 502
+    return jsonify({"query": (query or "").strip(), "results": results})
 
 
 @app.route("/register", methods=["GET", "POST"])
