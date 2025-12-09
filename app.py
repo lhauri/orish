@@ -85,6 +85,20 @@ app.config.update(
     DATABASE=DATABASE_PATH,
 )
 
+if not hasattr(app, "before_first_request"):
+    def _compat_before_first_request(func):
+        state = {"called": False}
+
+        @wraps(func)
+        def trigger_once():
+            if not state["called"]:
+                state["called"] = True
+                return func()
+        app.before_request(trigger_once)
+        return func
+
+    app.before_first_request = _compat_before_first_request
+
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")

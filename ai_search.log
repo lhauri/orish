@@ -4,3 +4,6 @@
 {"timestamp": "2025-12-09T15:05:45Z", "event": "json_request", "details": {"query": "orish news", "url": "https://api.duckduckgo.com/?q=orish+news&format=json&no_html=1&no_redirect=1"}}
 {"timestamp": "2025-12-09T15:05:45Z", "event": "json_response", "details": {"query": "orish news", "status_code": 202}}
 {"timestamp": "2025-12-09T15:05:45Z", "event": "combined_results", "details": {"query": "orish news", "result_count": 2}}
+{"timestamp": "2025-12-09T15:08:59Z", "event": "json_request", "details": {"query": "orish news", "url": "https://api.duckduckgo.com/?q=orish+news&format=json&no_html=1&no_redirect=1"}}
+{"timestamp": "2025-12-09T15:08:59Z", "event": "json_response", "details": {"query": "orish news", "status_code": 202}}
+{"timestamp": "2025-12-09T15:08:59Z", "event": "combined_results", "details": {"query": "orish news", "result_count": 2}}
