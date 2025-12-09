@@ -214,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const statusEl = aiWidget.querySelector('[data-role="status"]');
         const statusIndicator = aiWidget.querySelector('.ai-status-indicator');
         const suggestionButtons = aiWidget.querySelectorAll('[data-suggestion]');
-        const state = { open: false, busy: false };
+        const state = { open: false, busy: false, assistantBubble: null };
 
         const togglePanel = open => {
             state.open = open;
@@ -227,19 +227,50 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        const appendMessage = (role, text) => {
+        const appendMessage = (role, text, extraClass = '') => {
             if (!messagesEl) {
                 return;
             }
             const bubble = document.createElement('div');
             bubble.className = `ai-message ai-message-${role}`;
+            if (extraClass) {
+                bubble.classList.add(extraClass);
+            }
             bubble.textContent = text;
             messagesEl.appendChild(bubble);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+            return bubble;
+        };
+
+        const appendProgress = message => {
+            appendMessage('assistant', message, 'ai-message-progress');
+        };
+
+        const ensureAssistantBubble = () => {
+            if (!state.assistantBubble) {
+                state.assistantBubble = appendMessage('assistant', '');
+            }
+            return state.assistantBubble;
+        };
+
+        const appendChunk = chunk => {
+            const bubble = ensureAssistantBubble();
+            if (!bubble) {
+                return;
+            }
+            const trimmed = chunk?.trim();
+            if (!trimmed) {
+                return;
+            }
+            bubble.textContent = `${bubble.textContent} ${trimmed}`.trim();
             messagesEl.scrollTop = messagesEl.scrollHeight;
         };
 
         const describeAction = action => {
             const status = action.status || 'pending';
+            if (action.message) {
+                return action.message;
+            }
             if (status === 'forbidden' || status === 'error') {
                 return action.message || 'Action could not be completed.';
             }
@@ -279,10 +310,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     item.appendChild(document.createTextNode(' '));
                     item.appendChild(link);
                 }
-                if (typeof pushFlash === 'function' && action.status === 'success') {
-                    pushFlash(message, 'success');
-                } else if (typeof pushFlash === 'function' && action.status === 'error') {
-                    pushFlash(message, 'danger');
+                if (typeof pushFlash === 'function') {
+                    const level = action.status === 'error' ? 'danger' : 'success';
+                    pushFlash(message, level);
                 }
                 list.appendChild(item);
             });
@@ -303,21 +333,36 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!event || typeof event !== 'object') {
                 return;
             }
-            if (event.type === 'status') {
-                updateStatus(event.message, 'thinking');
-            } else if (event.type === 'answer') {
-                updateStatus('', 'ready');
-                appendMessage('assistant', event.answer || 'Done.');
-                renderActions(event.actions);
-                if (event.navigate_to) {
-                    appendMessage('assistant', 'Taking you to the requested page…');
-                    setTimeout(() => {
-                        window.location.href = event.navigate_to;
-                    }, 1200);
-                }
-            } else if (event.type === 'error') {
-                updateStatus(event.message, 'error');
-                appendMessage('assistant', event.message || 'The assistant is unavailable.');
+            switch (event.type) {
+                case 'status':
+                    updateStatus(event.message, 'thinking');
+                    break;
+                case 'progress':
+                    appendProgress(event.message);
+                    updateStatus(event.message, 'thinking');
+                    break;
+                case 'chunk':
+                    appendChunk(event.content || '');
+                    updateStatus('Responding…', 'thinking');
+                    break;
+                case 'done':
+                    updateStatus('Ready for another question.', 'ready');
+                    state.assistantBubble = null;
+                    renderActions(event.actions);
+                    if (event.navigate_to) {
+                        appendProgress('Taking you to the requested page…');
+                        setTimeout(() => {
+                            window.location.href = event.navigate_to;
+                        }, 1200);
+                    }
+                    break;
+                case 'error':
+                    updateStatus(event.message, 'error');
+                    appendMessage('assistant', event.message || 'The assistant is unavailable.');
+                    state.assistantBubble = null;
+                    break;
+                default:
+                    break;
             }
         };
 
@@ -392,11 +437,13 @@ document.addEventListener('DOMContentLoaded', () => {
             appendMessage('user', text);
             textarea.value = '';
             updateStatus('Thinking…', 'thinking');
+            state.assistantBubble = null;
             state.busy = true;
             streamAssistant({ message: text })
                 .catch(error => {
                     updateStatus(error.message, 'error');
                     appendMessage('assistant', error.message);
+                    state.assistantBubble = null;
                 })
                 .finally(() => {
                     state.busy = false;

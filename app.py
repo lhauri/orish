@@ -16,6 +16,7 @@ import re
 import secrets
 import sqlite3
 import subprocess
+from bs4 import BeautifulSoup
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -52,6 +53,7 @@ import requests
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, "orish.db")
 AI_LOG_PATH = os.path.join(BASE_DIR, "ai.log")
+AI_SEARCH_LOG_PATH = os.path.join(BASE_DIR, "ai_search.log")
 
 
 def _run_git_command(*args):
@@ -89,6 +91,7 @@ DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 DEEPSEEK_TIMEOUT = 30
 WEB_SEARCH_ENDPOINT = "https://api.duckduckgo.com/"
 WEB_SEARCH_TIMEOUT = 12
+WEB_SEARCH_HTML_ENDPOINT = "https://duckduckgo.com/html/"
 AI_ASSISTANT_MAX_MESSAGE_CHARS = 1200
 AI_NAVIGATION_DEFINITIONS = [
     {"id": "home", "label": "Home", "endpoint": "home"},
@@ -651,6 +654,19 @@ def _log_ai_event(event_type, details):
         app.logger.warning("Failed to write ai.log entry: %s", exc)
 
 
+def _log_search_event(event_type, details):
+    record = {
+        "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "event": event_type,
+        "details": details,
+    }
+    try:
+        with open(AI_SEARCH_LOG_PATH, "a", encoding="utf-8") as log_file:
+            log_file.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except OSError as exc:  # pragma: no cover
+        app.logger.warning("Failed to write ai_search.log entry: %s", exc)
+
+
 def _flatten_duckduckgo_topics(topics):
     for item in topics or []:
         if isinstance(item, dict) and item.get("Topics"):
@@ -663,59 +679,68 @@ def _strip_html(text):
     return re.sub(r"<[^>]+>", "", text or "").strip()
 
 
-def search_internet(query, max_results=5):
-    """Fetch public web results via DuckDuckGo's Instant Answer API."""
-    query = (query or "").strip()
-    if not query:
-        raise ValueError("Search query is required.")
-    try:
-        limit = max(1, min(int(max_results), 20))
-    except (TypeError, ValueError):
-        limit = 5
+def _fetch_duckduckgo_json(query):
     params = {
         "q": query,
         "format": "json",
         "no_html": "1",
         "no_redirect": "1",
     }
-    request_url = f"{WEB_SEARCH_ENDPOINT}?{urlencode(params)}"
-    log_context = {"query": query, "limit": limit, "endpoint": WEB_SEARCH_ENDPOINT}
-    _log_ai_event("web_search_request", {**log_context, "url": request_url})
     headers = {
         "User-Agent": "OrishAI/1.0 (+https://orish.app)",
         "Accept": "application/json",
     }
-    try:
-        response = requests.get(
-            WEB_SEARCH_ENDPOINT,
-            params=params,
-            headers=headers,
-            timeout=WEB_SEARCH_TIMEOUT,
-        )
-    except requests.RequestException as exc:
-        _log_ai_event(
-            "web_search_error",
-            {**log_context, "error": str(exc)},
-        )
-        raise RuntimeError("Search request failed. Try again shortly.") from exc
+    request_url = f"{WEB_SEARCH_ENDPOINT}?{urlencode(params)}"
+    _log_search_event("json_request", {"query": query, "url": request_url})
+    response = requests.get(
+        WEB_SEARCH_ENDPOINT,
+        params=params,
+        headers=headers,
+        timeout=WEB_SEARCH_TIMEOUT,
+    )
+    _log_search_event(
+        "json_response", {"query": query, "status_code": response.status_code}
+    )
     if response.status_code not in (200, 202):
-        _log_ai_event(
-            "web_search_error",
-            {**log_context, "status_code": response.status_code},
-        )
         raise RuntimeError("Search provider unavailable right now.")
-    try:
-        payload = response.json()
-    except ValueError as exc:
-        raise RuntimeError("Search provider returned invalid data.") from exc
+    return response.json()
 
+
+def _fetch_duckduckgo_html(query):
+    params = {"q": query, "kl": "us-en", "kp": -2}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) OrishAI",
+        "Accept": "text/html",
+    }
+    _log_search_event(
+        "html_request",
+        {"query": query, "url": f"{WEB_SEARCH_HTML_ENDPOINT}?{urlencode(params)}"},
+    )
+    response = requests.get(
+        WEB_SEARCH_HTML_ENDPOINT,
+        params=params,
+        headers=headers,
+        timeout=WEB_SEARCH_TIMEOUT,
+    )
+    _log_search_event(
+        "html_response", {"query": query, "status_code": response.status_code}
+    )
+    if response.status_code != 200:
+        raise RuntimeError("DuckDuckGo HTML endpoint unavailable.")
+    return response.text
+
+
+def _parse_duckduckgo_json(payload, query, limit):
     results = []
-    if payload.get("AbstractText"):
+    if not payload:
+        return results
+    abstract_text = payload.get("AbstractText")
+    if abstract_text:
         results.append(
             {
                 "title": payload.get("Heading") or payload.get("AbstractSource") or query,
                 "url": payload.get("AbstractURL") or payload.get("AbstractSource") or "",
-                "snippet": payload.get("AbstractText"),
+                "snippet": abstract_text,
                 "source": "duckduckgo",
             }
         )
@@ -748,8 +773,71 @@ def search_internet(query, max_results=5):
                         "source": "duckduckgo",
                     }
                 )
+    return results
+
+
+def _parse_duckduckgo_html(html_text, limit):
+    soup = BeautifulSoup(html_text, "html.parser")
+    results = []
+    for result in soup.select(".result"):
+        title_tag = result.select_one(".result__a")
+        if not title_tag:
+            continue
+        url = title_tag.get("href")
+        snippet_tag = result.select_one(".result__snippet")
+        snippet = snippet_tag.get_text(" ", strip=True) if snippet_tag else ""
+        title = title_tag.get_text(" ", strip=True)
+        if not url:
+            continue
+        results.append(
+            {
+                "title": title or url,
+                "url": url,
+                "snippet": snippet,
+                "source": "duckduckgo-html",
+            }
+        )
+        if len(results) >= limit:
+            break
+    return results
+
+
+def search_internet(query, max_results=5):
+    """Fetch public web results via DuckDuckGo APIs with HTML fallback."""
+    query = (query or "").strip()
+    if not query:
+        raise ValueError("Search query is required.")
+    try:
+        limit = max(1, min(int(max_results), 20))
+    except (TypeError, ValueError):
+        limit = 5
+    results = []
+    try:
+        payload = _fetch_duckduckgo_json(query)
+        results = _parse_duckduckgo_json(payload, query, limit)
+    except Exception as exc:
+        _log_search_event("json_error", {"query": query, "error": str(exc)})
+    if len(results) < limit:
+        try:
+            html_text = _fetch_duckduckgo_html(query)
+            html_results = _parse_duckduckgo_html(html_text, limit)
+            # merge unique URLs
+            existing_urls = {item["url"] for item in results}
+            for item in html_results:
+                if item["url"] not in existing_urls:
+                    results.append(item)
+                    existing_urls.add(item["url"])
+                if len(results) >= limit:
+                    break
+        except Exception as exc:
+            _log_search_event("html_error", {"query": query, "error": str(exc)})
+    if not results:
+        raise RuntimeError("No search results were found. Try another query.")
     _log_ai_event(
-        "web_search_response", {**log_context, "result_count": len(results)}
+        "web_search_response", {"query": query, "result_count": len(results)}
+    )
+    _log_search_event(
+        "combined_results", {"query": query, "result_count": len(results)}
     )
     return results[:limit]
 
@@ -960,6 +1048,7 @@ def _assistant_create_exam(user, payload):
         "category": category,
         "url": url_for("manage_exam", exam_id=exam_id),
         "label": f"Edit {title}",
+        "message": f"Creating exam '{title}' in {category}.",
     }
 
 
@@ -1012,6 +1101,7 @@ def _assistant_create_question(user, payload):
         "prompt": prompt[:120],
         "url": url_for("admin_questions"),
         "label": "Question bank",
+        "message": f"Adding new {category} question: {prompt[:80]}",
     }
 
 
@@ -1042,6 +1132,7 @@ def _assistant_create_group(user, payload):
         "subject": subject,
         "url": url_for("study_group", group_id=cur.lastrowid),
         "label": f"Open {title[:30]}",
+        "message": f"Creating study pack '{title[:40]}' for {subject}.",
     }
 
 
@@ -1084,6 +1175,7 @@ def _assistant_create_user(user, payload):
         "role": "teacher" if is_admin else "student",
         "url": url_for("admin_users"),
         "label": "Manage users",
+        "message": f"Creating { 'teacher' if is_admin else 'student'} account for {username[:40]}.",
     }
 
 
@@ -1105,6 +1197,7 @@ def _execute_assistant_actions(user, nav_links, actions):
                         "status": "ready",
                         "url": resolved["url"],
                         "label": resolved.get("label"),
+                        "message": f"Opening {resolved.get('label') or resolved.get('url')}.",
                     }
                 )
             else:
@@ -1184,6 +1277,51 @@ def run_general_assistant_interaction(user, message):
         },
     )
     return payload
+
+
+def _describe_assistant_action(action):
+    if not isinstance(action, dict):
+        return ""
+    if action.get("message"):
+        return action["message"]
+    action_type = action.get("type")
+    status = action.get("status")
+    if action_type == "navigate" and action.get("label"):
+        return f"Navigating to {action['label']}."
+    if action_type == "create_exam" and action.get("title"):
+        return f"Created exam {action['title']} ({action.get('category')})."
+    if action_type == "create_question" and action.get("category"):
+        return f"Added {action['category']} question."
+    if action_type == "create_group" and action.get("title"):
+        return f"Created study pack {action['title']}."
+    if action_type == "create_user" and action.get("username"):
+        return f"Created {action.get('role', 'student')} {action['username']}."
+    if status == "forbidden":
+        return action.get("message", "Action not permitted.")
+    if status == "error":
+        return action.get("message", "Action could not be completed.")
+    return action.get("message", "")
+
+
+def _chunk_answer(text, chunk_size=220):
+    text = (text or "").strip()
+    if not text:
+        return []
+    words = text.split()
+    chunks = []
+    current = []
+    current_len = 0
+    for word in words:
+        if current_len + len(word) + 1 > chunk_size and current:
+            chunks.append(" ".join(current))
+            current = [word]
+            current_len = len(word) + 1
+        else:
+            current.append(word)
+            current_len += len(word) + 1
+    if current:
+        chunks.append(" ".join(current))
+    return chunks
 
 
 def _extract_chat_text(response):
@@ -2026,7 +2164,24 @@ def ai_assistant():
         yield _ndjson_line({"type": "status", "message": "Thinking..."})
         try:
             result = run_general_assistant_interaction(g.user, message)
-            yield _ndjson_line({"type": "answer", **result})
+            actions = result.get("actions") or []
+            for action in actions:
+                desc = _describe_assistant_action(action)
+                if desc:
+                    yield _ndjson_line({"type": "progress", "message": desc})
+            chunks = _chunk_answer(result.get("answer", ""))
+            if not chunks:
+                chunks = ["I wasn't able to produce a response."]
+            for chunk in chunks:
+                yield _ndjson_line({"type": "chunk", "content": chunk})
+            yield _ndjson_line(
+                {
+                    "type": "done",
+                    "actions": actions,
+                    "navigate_to": result.get("navigate_to"),
+                    "answer": result.get("answer", ""),
+                }
+            )
         except ValueError as exc:
             yield _ndjson_line({"type": "error", "message": str(exc)})
         except Exception as exc:  # pragma: no cover - defensive

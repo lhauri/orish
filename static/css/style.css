@@ -1830,17 +1830,25 @@ label.toggle span {
 .ai-form textarea {
     width: 100%;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(8, 16, 28, 0.6);
-    color: inherit;
-    padding: 0.7rem;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(15, 23, 42, 0.85);
+    color: #f8fafc;
+    padding: 0.85rem;
     resize: none;
     margin-bottom: 0.5rem;
+    font-size: 1rem;
+    line-height: 1.5;
 }
 
 .ai-form-actions {
     display: flex;
     justify-content: flex-end;
+}
+
+.ai-message-progress {
+    background: rgba(52, 211, 153, 0.14);
+    border: 1px dashed rgba(52, 211, 153, 0.3);
+    font-size: 0.85rem;
 }
 
 .ai-action-list {

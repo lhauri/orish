@@ -321,9 +321,10 @@ def test_ai_assistant_creates_exam(client, create_user, monkeypatch):
 
     response = client.post("/ai/assistant", json={"message": "Create a grammar test"}, buffered=True)
     assert response.status_code == 200
-    chunks = [json.loads(line) for line in response.data.decode().split("\n") if line.strip()]
-    final = chunks[-1]
-    assert final["type"] == "answer"
+    events = [json.loads(line) for line in response.data.decode().split("\n") if line.strip()]
+    final = events[-1]
+    assert any(evt["type"] == "chunk" for evt in events)
+    assert final["type"] == "done"
     assert final["actions"][0]["type"] == "create_exam"
     assert final["actions"][0]["url"].endswith("/manage")
     with flask_app.app_context():
@@ -347,9 +348,9 @@ def test_ai_assistant_navigation_action(client, create_user, monkeypatch):
 
     response = client.post("/ai/assistant", json={"message": "Take me to the exams"}, buffered=True)
     assert response.status_code == 200
-    chunks = [json.loads(line) for line in response.data.decode().split("\n") if line.strip()]
-    final = chunks[-1]
-    assert final["type"] == "answer"
+    events = [json.loads(line) for line in response.data.decode().split("\n") if line.strip()]
+    final = events[-1]
+    assert final["type"] == "done"
     with flask_app.app_context():
         assert final["navigate_to"].endswith(url_for("exams"))
     assert final["actions"][0]["type"] == "navigate"
