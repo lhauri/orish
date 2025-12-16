@@ -5,6 +5,7 @@
     --surface-muted: #f5f5ff;
     --text: #0f172a;
     --muted: #5f6b85;
+    --muted-foreground: rgba(71, 85, 105, 0.85);
     --primary: #7c3aed;
     --primary-dark: #5b21b6;
     --accent: #0ea5e9;
@@ -1738,11 +1739,13 @@ label.toggle span {
 
 .ai-panel {
     width: min(420px, calc(100vw - 2rem));
-    background: linear-gradient(140deg, rgba(15, 23, 42, 0.98), rgba(10, 17, 30, 0.96));
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: radial-gradient(circle at top right, rgba(15, 118, 255, 0.25), transparent 55%),
+        linear-gradient(140deg, rgba(10, 17, 30, 0.98), rgba(8, 12, 23, 0.97));
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 22px;
     box-shadow: 0 30px 60px rgba(3, 10, 20, 0.55);
-    padding: 1rem 1.15rem 1.25rem;
+    padding: 1.1rem 1.2rem 1.35rem;
+    color: #e2e8f0;
     backdrop-filter: blur(16px);
     transform-origin: bottom right;
     transform: translateY(12px) scale(0.98);
@@ -1784,7 +1787,7 @@ label.toggle span {
 .ai-panel-subtitle {
     margin: 0;
     font-size: 0.9rem;
-    color: var(--muted-foreground);
+    color: rgba(248, 250, 252, 0.7);
 }
 
 .ai-panel-close {
@@ -1806,9 +1809,9 @@ label.toggle span {
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-    padding: 0.45rem 0.35rem;
+    gap: 0.6rem;
+    margin-bottom: 0.85rem;
+    padding: 0.35rem 0.15rem;
 }
 
 .ai-message {
@@ -1816,22 +1819,28 @@ label.toggle span {
     border-radius: 12px;
     font-size: 0.95rem;
     line-height: 1.4;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(13, 21, 37, 0.75);
+    border: 1px solid rgba(148, 186, 255, 0.25);
+    color: #f8fbff;
+    backdrop-filter: blur(6px);
 }
 
 .ai-message-user {
-    background: rgba(69, 133, 255, 0.18);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.95), rgba(14, 165, 233, 0.9));
+    border: none;
+    color: #04111f;
     align-self: flex-end;
+    box-shadow: 0 8px 20px rgba(14, 165, 233, 0.2);
 }
 
 .ai-message-assistant {
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(6, 13, 30, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .ai-status {
     font-size: 0.85rem;
-    color: var(--muted-foreground);
+    color: rgba(248, 250, 252, 0.75);
     min-height: 1.2rem;
 }
 
@@ -1879,15 +1888,20 @@ label.toggle span {
 
 .ai-form textarea {
     width: 100%;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(15, 23, 42, 0.92);
+    border-radius: 14px;
+    border: 1px solid rgba(148, 186, 255, 0.35);
+    background: rgba(7, 12, 25, 0.85);
     color: #f8fafc;
-    padding: 0.85rem;
+    padding: 0.95rem;
     resize: none;
     margin-bottom: 0.5rem;
     font-size: 1rem;
     line-height: 1.5;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.ai-form textarea::placeholder {
+    color: rgba(226, 232, 240, 0.7);
 }
 
 .ai-form-actions {
