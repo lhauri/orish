@@ -1276,6 +1276,11 @@ def run_general_assistant_interaction(user, message):
         answer = "I'm not sure yet, could you clarify what you need?"
     actions = data.get("actions") if isinstance(data.get("actions"), list) else []
     execution = _execute_assistant_actions(user, nav_links, actions)
+    navigation_only = bool(execution["navigate_to"]) and execution["actions"] and all(
+        (action.get("type") or "").lower() == "navigate" for action in execution["actions"]
+    )
+    if navigation_only:
+        answer = "Taking you there..."
     payload = {
         "answer": answer,
         "actions": execution["actions"],
@@ -2179,15 +2184,19 @@ def ai_assistant():
         try:
             result = run_general_assistant_interaction(g.user, message)
             actions = result.get("actions") or []
+            navigation_only = bool(result.get("navigate_to")) and actions and all(
+                (action.get("type") or "").lower() == "navigate" for action in actions
+            )
             for action in actions:
                 desc = _describe_assistant_action(action)
                 if desc:
                     yield _ndjson_line({"type": "progress", "message": desc})
-            chunks = _chunk_answer(result.get("answer", ""))
-            if not chunks:
-                chunks = ["I wasn't able to produce a response."]
-            for chunk in chunks:
-                yield _ndjson_line({"type": "chunk", "content": chunk})
+            if not navigation_only:
+                chunks = _chunk_answer(result.get("answer", ""))
+                if not chunks:
+                    chunks = ["I wasn't able to produce a response."]
+                for chunk in chunks:
+                    yield _ndjson_line({"type": "chunk", "content": chunk})
             yield _ndjson_line(
                 {
                     "type": "done",

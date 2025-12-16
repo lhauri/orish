@@ -344,17 +344,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     appendChunk(event.content || '');
                     updateStatus('Responding…', 'thinking');
                     break;
-                case 'done':
-                    updateStatus('Ready for another question.', 'ready');
+                case 'done': {
+                    const redirectUrl = event.navigate_to;
+                    const actions = Array.isArray(event.actions) ? event.actions : [];
+                    const navigationOnly =
+                        Boolean(redirectUrl) &&
+                        actions.length > 0 &&
+                        actions.every(action => (action.type || '').toLowerCase() === 'navigate');
+                    updateStatus(navigationOnly ? 'Redirecting…' : 'Ready for another question.', navigationOnly ? 'thinking' : 'ready');
                     state.assistantBubble = null;
-                    renderActions(event.actions);
-                    if (event.navigate_to) {
-                        appendProgress('Taking you to the requested page…');
-                        setTimeout(() => {
-                            window.location.href = event.navigate_to;
-                        }, 1200);
+                    if (!navigationOnly) {
+                        renderActions(actions);
+                    }
+                    if (redirectUrl) {
+                        togglePanel(false);
+                        window.location.href = redirectUrl;
+                        return;
                     }
                     break;
+                }
                 case 'error':
                     updateStatus(event.message, 'error');
                     appendMessage('assistant', event.message || 'The assistant is unavailable.');
