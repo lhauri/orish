@@ -1,144 +1,160 @@
 # Orish
 
-Orish is a Flask-based learning companion for English classrooms. It bundles curated question banks, mock exams, and optional DeepSeek-powered AI helpers so students can practice vocabulary, grammar, and translation in one workspace. When the AI service is unreachable, Orish automatically supplies handcrafted fallback content so lessons can continue without interruption.
+Orish is a classroom-ready English practice studio built with Flask. It combines daily student drills, teacher dashboards, AI copilots, and document analysis so a single deployment can cover vocabulary sprints, mock exams, and ad-hoc study packs. Every AI touchpoint (DeepSeek) has guard rails and deterministic fallbacks so lessons continue even when an API quota is exceeded.
 
-## Feature highlights
+## Table of contents
 
-| Area | Details |
-|------|---------|
-| **Quizzes** | 5-question sessions per category with instant scoring and history saved to `results`. |
-| **Exams** | Multi-question exams stored in `exams`/`exam_attempts`, including AI-generated teacher summaries. |
-| **Admin console** | CRUD for question banks, manual exam creation, plus an overview of all student attempts. |
-| **Document analyzer** | Upload PDF/DOCX/TXT/CSV/XLSX excerpts; AI (or heuristic fallback) returns summary, vocab focus, grammar coaching, and action points. |
-| **AI assistants** | Generate new questions/exams, review open-ended translation answers, or summarize attempts. Uses the DeepSeek `/responses` endpoint; transparent fallbacks are shown when the API key is missing or the request fails. |
+1. [Feature tour](#feature-tour)
+2. [Architecture](#architecture)
+3. [Local setup](#local-setup)
+4. [Configuration](#configuration)
+5. [Running the app](#running-the-app)
+6. [Testing & diagnostics](#testing--diagnostics)
+7. [Logs & troubleshooting](#logs--troubleshooting)
+8. [Project layout](#project-layout)
+9. [Deployment notes](#deployment-notes)
 
-## Tech stack
+## Feature tour
 
-- **Backend:** Flask 3, SQLite (via `sqlite3`), python-dotenv for config.
-- **AI integration:** OpenAI SDK pointed at DeepSeek’s compatible endpoint (`deepseek-chat`, `deepseek-reasoner`).
-- **Parsing:** PyPDF2, python-docx, openpyxl, csv for document ingestion.
-- **Frontend:** Jinja2 templates, Lucide icons, custom CSS (`static/css/style.css`), lightweight JS for icon rendering and mind-map animation (`static/js/app.js`).
+### Student experience
+- **Guided practice** – Three 5-question quiz modes (vocabulary, grammar, translation) with instant scoring, historical stats, and mind-map style navigation hints.
+- **Exam hub** – Students see the exams assigned to them, whether they are in study or test mode, and can launch each attempt without guessing URLs.
+- **Study packs & mind map** – Curated packs and a lightweight mind map page highlight current goals outside of formal exams.
+- **Document analyzer** – Learners can upload snippets of PDFs, DOCX, TXT, CSV, or XLSX files (≤ 2 MB, row/page caps enforced) to receive summaries, vocabulary focus, grammar notes, and action items.
 
-## Prerequisites
+### Teacher / admin tools
+- **Dashboard & analytics** – Overview of student attempts, AI summaries, and quick access to grading shortcuts.
+- **Question bank** – CRUD for banks, tag questions into groups, share packs, or let the AI assistant draft more.
+- **Exam builder** – Combine hand-written and AI-generated questions, toggle study/test availability, and assign exams to individual students.
+- **User management** – Promote or demote accounts, reset passwords, and create new learners directly from the admin area.
 
-- Python 3.10 or newer (virtual environment recommended)
-- SQLite (included with Python)
-- Optional DeepSeek API credentials for AI-enabled flows
+### AI copilots & automation
+- **Multi-use AI chat** – Floating “Orish Copilot” button gives students and teachers a round-button chat to navigate the app, draft questions, prepare exams, or fetch study ideas. Messages stream back in real time and navigation actions trigger automatic redirects.
+- **Translation grading & feedback** – Free-text answers are checked by DeepSeek; if it fails, deterministic heuristics fall back to lexicographic similarity.
+- **Document analyzer fallback** – When AI is offline, Orish still produces useful stats (sentence counts, repeated vocab, difficulty hints).
+- **Web-researched generation** – `/ai/search` and backend helpers call DuckDuckGo for lightweight research before drafting new content. Logs land in `ai_search.log` for review.
 
-## Setup guide
+## Architecture
 
-1. **Clone & install**
-   ```bash
-   git clone <repo-url>
-   cd orish
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
+- **Flask 3 + SQLite** – `app.py` hosts routes, services, AI adapters, and the simple SQLite persistence layer accessed through helper functions like `get_db()` or `init_tables()`.
+- **Templating** – Jinja2 templates (see `templates/base.html`) define the layout, navigation, AI widget, and all views (dashboard, admin, analyzer, exams, etc.).
+- **Frontend assets** – Custom CSS (`static/css/style.css`) plus Lucide icons drive the visual language. `static/js/app.js` handles navigation menus, flash messaging, and the AI widget (including streaming updates).
+- **AI integration** – DeepSeek is accessed via the OpenAI-compatible SDK inside `app.py`. The `request_ai_json_with_web_search` helper augments prompts with DuckDuckGo results when needed and appends user-visible fallbacks when API calls fail.
+- **Logs** – `ai.log` records each assistant exchange, while `ai_search.log` records auto-generated research prompts/responses for auditing.
+- **Tests** – `tests/test_app.py` exercises auth, profile updates, admin tools, AI assistant streaming, and the web-search helper. Running them creates an isolated SQLite DB in the pytest temp directory.
 
-2. **Configure environment**
-   Create `.env` in the project root (use `.env.example` if provided):
-   ```env
-   ORISH_SECRET=change-this
-   DEEPSEEK_API_KEY=sk-your-key      # optional but required for AI
-   DEEPSEEK_BASE_URL=https://api.deepseek.com
-   DEEPSEEK_MODEL=deepseek-chat
-   ```
-   Leave `DEEPSEEK_API_KEY` blank to run purely with fallback content.
+## Local setup
 
-3. **Initialize the database**
-   ```bash
-   python init_db.py
-   ```
-   This script creates tables, seeds question banks, inserts sample exams, and provisions the default admin:
-   - Email: `teacher@example.com`
-   - Password: `teach123`
+```bash
+git clone <repo-url> orish
+cd orish
+python3 -m venv .venv
+source .venv/bin/activate          # .venv\Scripts\activate on Windows
+pip install -r requirements.txt
+```
 
-4. **Run the dev server**
-   ```bash
-   python app.py
-   ```
-   Navigate to `http://127.0.0.1:5000`. Use the seeded admin account to explore teacher tools.
+### Initialize configuration
 
-## Working with the app
+Copy `.env.example` (if present) to `.env`, or create it manually:
 
-- **Student flow**
-  - Register a learner account or log in with an existing one.
-  - Use the dashboard to launch category-specific quizzes or enter the exam hub.
-  - Translation questions accept free text; DeepSeek (or fallback grading) responds with correctness and coaching tips.
+```env
+ORISH_SECRET=change-this           # Flask session/CSRF secret
+DEEPSEEK_API_KEY=sk-live-or-dev    # optional but required for AI features
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+```
 
-- **Admin flow**
-  - Visit `/admin/questions` to add manual questions or trigger AI generation per category.
-  - `/exams` allows publishing manual exams, while `/admin/exams/generate` asks AI (with fallback templates) to scaffold one for you.
-  - `/admin/exams/attempts` lists recent student attempts with AI summaries when available.
+Leave `DEEPSEEK_API_KEY` blank to run entirely on local fallbacks.
 
-- **Document analyzer**
-  - Accessible via `/analyze` (requires login).
-  - Supported extensions: `.pdf`, `.docx`, `.txt`, `.md`, `.csv`, `.xlsx`.
-  - Only the first ~10 pages/rows are parsed to keep response times low, and uploads above ~2 MB are rejected so parsing stays snappy.
-  - If DeepSeek is unavailable, a heuristic analyzer inspects sentence/word counts and surfaces actionable hints.
+### Create the database
 
-## AI configuration & fallbacks
+```bash
+python init_db.py
+```
 
-- Requests hit `<DEEPSEEK_BASE_URL>/v1/responses` with the model from `DEEPSEEK_MODEL`.
-- Failures (invalid key, quota exceeded, network outage) are logged and surfaced as friendly flash messages.
-- Fallback behaviors:
-  - **Question/exam generation:** pre-curated templates are inserted automatically.
-  - **Translation grading & summaries:** revert to deterministic checks (case-insensitive match) or omit the summary.
-  - **Document analyzer:** uses local heuristics (word counts, sentence variety, repeated vocab) until AI access is restored.
+The script seeds:
+- an admin account (`teacher@example.com` / `teach123`)
+- sample quizzes, exams, and study packs
+- reference data for analyzer heuristics
 
-## Project structure
+You can safely re-run the script; it is idempotent.
+
+## Configuration
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `ORISH_SECRET` | Flask secret key (sessions + CSRF) | `dev-secret-key` |
+| `DATABASE` | Path to the SQLite DB | `orish.db` in repo root |
+| `DEEPSEEK_API_KEY` | DeepSeek / OpenAI-compatible key | _unset_ |
+| `DEEPSEEK_BASE_URL` | API base (will have `/v1` appended if missing) | `https://api.deepseek.com` |
+| `DEEPSEEK_MODEL` | Model slug passed to DeepSeek | `deepseek-chat` |
+| `FLASK_DEBUG` or `DEBUG` | Enables debug mode when truthy | `false` |
+
+> **Tip:** Use `.env` plus `python-dotenv` (already wired in `app.py`) to simplify local development.
+
+## Running the app
+
+```bash
+python app.py
+```
+
+Browse to `http://127.0.0.1:5000`:
+- Sign in with the seeded teacher credentials to explore admin tools.
+- Register a learner account to experience the student dashboard, quizzes, exams, mind map, and analyzer.
+- Open the floating AI button (bottom-right) for the streaming copilot.
+
+### Production entry point
+
+`wsgi.py` exposes the Flask application as `app` so you can point Gunicorn, uWSGI, or Azure App Service to `wsgi:app`. Remember to run `init_db.py` (or supply your own migrations) before booting a production worker.
+
+## Testing & diagnostics
+
+| Task | Command | Notes |
+|------|---------|-------|
+| Run unit tests | `pytest` | Exercises routes, auth, admin flows, and AI helpers. |
+| Syntax check | `python3 -m py_compile app.py` | Fast sanity check for CI or pre-commit. |
+| DeepSeek smoke test | `python scripts/test_deepseek.py` | Verifies credentials by issuing a short chat completion. |
+
+When adding new functionality, prefer covering it in `tests/test_app.py` or a dedicated module-specific test.
+
+## Logs & troubleshooting
+
+- `ai.log` – Full text of AI assistant sessions (chat payloads + responses). Useful for debugging navigation or action failures.
+- `ai_search.log` – Records every external research prompt plus the DuckDuckGo snippets returned.
+- Flask flash messages alert the user when AI calls fail and when fallbacks kick in.
+
+Common fixes:
+- **`ModuleNotFoundError`** – Activate your virtualenv and reinstall dependencies.
+- **`AI request failed` flashes** – Confirm `DEEPSEEK_API_KEY` and ensure the base URL includes `/v1`. When absent, Orish still functions via fallbacks.
+- **`sqlite3.OperationalError: database is locked`** – Stop the dev server, delete `orish.db`, rerun `init_db.py`, then restart.
+- **Upload rejected** – Only `.txt`, `.md`, `.pdf`, `.docx`, `.xlsx`, `.csv` are accepted, ≤ 2 MB, and large docs are truncated per the limits in `app.py`.
+
+## Project layout
 
 ```
 orish/
-├── app.py              # Flask routes, AI helpers, DB access, session management
-├── init_db.py          # Idempotent seeding script (users, questions, exams)
-├── requirements.txt    # Python dependencies (Flask, OpenAI SDK, docx, etc.)
-├── templates/          # Jinja2 templates for all pages
+├── app.py               # Routes, services, AI adapters, database helpers
+├── init_db.py           # Idempotent schema & seed script
+├── requirements.txt     # Flask, OpenAI SDK, docx, PyPDF2, etc.
 ├── static/
-│   ├── css/style.css   # Shared styling + layout
-│   └── js/app.js       # Lucide icon bootstrapping, mind-map animation
-├── data/               # Reserved for future exports/uploads
-└── README.md
+│   ├── css/style.css    # Entire UI + AI widget styling
+│   └── js/app.js        # Navigation, flash helper, AI widget streaming
+├── templates/           # Home, dashboard, exams, analyzer, admin, auth
+├── scripts/
+│   └── test_deepseek.py # CLI connectivity test
+├── tests/
+│   └── test_app.py      # Pytest suite
+├── wsgi.py              # Production entry point
+├── ai.log               # AI assistant transcripts
+└── ai_search.log        # Web research transcripts
 ```
 
-## Useful commands
+## Deployment notes
 
-| Task | Command |
-|------|---------|
-| Install deps | `pip install -r requirements.txt` |
-| Initialize DB | `python init_db.py` |
-| Start dev server | `python app.py` |
-| Syntax check | `python3 -m py_compile app.py` |
-| Reset DB (dev only) | `rm orish.db && python init_db.py` |
+1. **Secrets & env vars** – Provide real values for `ORISH_SECRET` and `DEEPSEEK_API_KEY`. Store them as platform secrets (Heroku, Render, Azure App Service, etc.).
+2. **Database** – For small classrooms SQLite is fine; for larger cohorts consider pointing `app.config["DATABASE"]` to a managed PostgreSQL instance (requires adapting `get_db()` and schema SQL).
+3. **Static assets** – `static/` is self-contained; enable caching headers via your reverse proxy or CDN.
+4. **Background work** – AI calls happen inline via Flask streaming responses, so provision enough worker threads (e.g., Gunicorn with `--workers 2 --threads 4`) or move heavy jobs to a task queue if you scale beyond a classroom.
+5. **Monitoring** – Tail `ai.log`/`ai_search.log` and watch server logs for rate-limit errors to adjust DeepSeek quotas early.
 
-## Environment variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ORISH_SECRET` | Flask session/CSRF secret | `dev-secret-key` |
-| `DEEPSEEK_API_KEY` | DeepSeek/OpenAI-compatible key (optional) | — |
-| `DEEPSEEK_BASE_URL` | API base URL (version suffix auto-added if missing) | `https://api.deepseek.com` |
-| `DEEPSEEK_MODEL` | Model slug passed to DeepSeek | `deepseek-chat` |
-
-## Testing & quality
-
-- The project currently relies on manual verification plus `python3 -m py_compile app.py` for syntax checks.
-- When adding features, consider wiring lightweight unit tests (e.g., pytest) for database helpers or AI fallbacks.
-- For UI changes, manually exercise: registration/login, each quiz category, exam creation/take, analyzer upload, and admin pages.
-
-## Troubleshooting
-
-- **Missing dependency (`ModuleNotFoundError`)** – activate your virtualenv and reinstall via `pip install -r requirements.txt`.
-- **`AI request failed` flash** – confirm `DEEPSEEK_API_KEY`, network connectivity, and base URL. Built-in fallbacks keep workflows functional until the API recovers.
-- **Database locked/unexpected data** – stop the Flask server, delete `orish.db`, rerun `python init_db.py`, then restart.
-- **File upload rejected** – ensure the extension is in the allowed list and the file isn’t empty; only the first 10 pages/rows of larger documents are read.
-
-## Contributing
-
-1. Create a feature branch.
-2. Apply changes (prefer `apply_patch` or formatted diffs).
-3. Run `python3 -m py_compile app.py` and manually verify core flows.
-4. Submit a PR describing user impact, testing performed, and any AI configuration changes.
-
-Happy teaching and learning!
+Happy teaching and learning! If you spot gaps or want to extend Orish, open an issue or submit a PR describing the scenario you’d like to cover.
