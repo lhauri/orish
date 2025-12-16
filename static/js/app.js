@@ -213,7 +213,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const messagesEl = aiWidget.querySelector('[data-role="messages"]');
         const statusEl = aiWidget.querySelector('[data-role="status"]');
         const statusIndicator = aiWidget.querySelector('.ai-status-indicator');
-        const suggestionButtons = aiWidget.querySelectorAll('[data-suggestion]');
         const state = { open: false, busy: false, assistantBubble: null };
 
         const togglePanel = open => {
@@ -414,16 +413,6 @@ document.addEventListener('DOMContentLoaded', () => {
             togglePanel(!state.open);
         });
         closeButton?.addEventListener('click', () => togglePanel(false));
-        suggestionButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const suggestion = button.dataset.suggestion;
-                if (!suggestion || !textarea) {
-                    return;
-                }
-                textarea.value = suggestion;
-                textarea.focus();
-            });
-        });
 
         form?.addEventListener('submit', event => {
             event.preventDefault();
