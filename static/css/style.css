@@ -8,6 +8,8 @@
     --primary: #7c3aed;
     --primary-dark: #5b21b6;
     --accent: #0ea5e9;
+    --accent-strong: #0284c7;
+    --accent-soft: #38bdf8;
     --border: rgba(15, 23, 42, 0.08);
     --shadow-lg: 0 30px 70px rgba(88, 63, 232, 0.15);
     --shadow-sm: 0 10px 30px rgba(15, 23, 42, 0.08);
@@ -1688,6 +1690,7 @@ label.toggle span {
 
 .ai-launcher {
     border: none;
+    padding: 0;
     width: 64px;
     height: 64px;
     border-radius: 50%;
